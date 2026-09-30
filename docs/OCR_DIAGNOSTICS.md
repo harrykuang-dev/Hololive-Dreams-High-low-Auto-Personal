@@ -1,4 +1,4 @@
-# Reward OCR diagnostics
+# Reward OCR
 
 Challenge amounts are yellow and describe the reward after the next successful
 double. Result amounts are cyan and describe the amount credited. The result
@@ -9,11 +9,11 @@ The existing animation delay, stability checks and expected-cashout comparison
 still control when a result is credited. An intermediate animation value such
 as 80 is not evidence that the final reward was misread as 80.
 
-Each challenge/result OCR read saves the full normalized frame, search-zone
-crop and prepared digit image under `debug/ocr/`. `readings.jsonl` links their
-timestamp identifiers to the numeric reading and search zone. Normal program
-messages are persisted under `logs/`. OCR diagnostic readings are not printed
-in the application interface. These directories are excluded from Git.
+The user-facing application does not save logs, OCR images, readings or card
+tracking screenshots. Image processing stays in memory. Necessary status
+messages are displayed only in the interface's bounded in-memory buffer;
+no diagnostic files or directories are created. The daily coin record is
+still saved to `daily_coins.json` so restarting preserves confirmed credits.
 
 ## Captured-frame regression and live verification
 

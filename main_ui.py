@@ -106,13 +106,8 @@ class RedirectText:
     def __init__(self, ui):
         self.ui = ui
         self.raw_text = ""
-        log_dir = auto_bot.APP_DIR / 'logs'
-        log_dir.mkdir(parents=True, exist_ok=True)
-        self.log_file = (log_dir / f'run-{time.time_ns()}.log').open('a', encoding='utf-8', buffering=1)
 
     def write(self, string):
-        self.log_file.write(string)
-        self.log_file.flush()
         self.ui.after(0, self._write, string)
 
     def _write(self, string):
