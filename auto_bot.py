@@ -16,7 +16,8 @@ import ddddocr
 from recognizer import CardRecognizer
 from poker_core import calculate_best, JOKER_ID
 from settlement import SettlementReader
-from reward_vision import read_challenge_number
+from reward_vision import (read_challenge_number, challenge_number_image,
+                           read_result_number as read_result_digits, result_number_image)
 from challenge_reward import ChallengeRewardReader
 from phased_strategy import PhasedStrategy
 
@@ -454,27 +455,29 @@ def find_all_card_rects(img, search_zone):
 # OCR 引擎 1：用于提取浅紫底色上的黄色数字 (加入强制纠偏机制)
 # ---------------------------------------------------------
 def read_screen_number(img, search_zone):
-    return read_challenge_number(img, search_zone, ocr)
+    value = read_challenge_number(img, search_zone, ocr)
+    save_ocr_evidence(img, search_zone, challenge_number_image(img, search_zone), 'challenge', value)
+    return value
+
+
+def save_ocr_evidence(img, zone, prepared, kind, value):
+    directory = DEBUG_DIR / 'ocr'
+    directory.mkdir(parents=True, exist_ok=True)
+    stamp = str(time.time_ns())
+    x, y, w, h = zone
+    for suffix, image in [('frame', img), ('crop', img[y:y+h,x:x+w]), ('prepared', prepared)]:
+        if image is not None:
+            cv2.imwrite(str(directory / f'{stamp}-{kind}-{suffix}.png'), image)
+    with (directory / 'readings.jsonl').open('a', encoding='utf-8') as stream:
+        stream.write(json.dumps({'id':stamp, 'kind':kind, 'value':value, 'zone':zone})+'\n')
 
 # ---------------------------------------------------------
 # OCR 引擎 2：用于纯白底浅蓝字 (最终 RESULT 结算界面的 Coins)
 # ---------------------------------------------------------
 def read_result_number(img, search_zone):
-    sx, sy, sw, sh = search_zone
-    if sw == 0 or sh == 0:
-        return 0
-
-    roi = img[sy:sy + sh, sx:sx + sw]
-    roi = cv2.resize(roi, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-
-    _, img_bytes = cv2.imencode('.png', gray)
-    text = ocr.classification(img_bytes.tobytes())
-
-    try:
-        return int(''.join(filter(str.isdigit, text)))
-    except ValueError:
-        return 0
+    value = read_result_digits(img, search_zone, ocr)
+    save_ocr_evidence(img, search_zone, result_number_image(img, search_zone), 'result', value)
+    return value
 
 
 # ================= 3. 数据与主循环 =================
