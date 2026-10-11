@@ -2,14 +2,16 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Indonesian](README.id.md) · [简体中文](README.zh-CN.md)
 
-A Windows program that automates High & Low with the 1.0.1 original strategy and a three-stage strategy. The interface supports English, Traditional Chinese, Japanese, Korean, Indonesian and Simplified Chinese.
+A Windows program that automates High & Low with Conservative (original) and Aggressive (three-stage) strategies. The interface supports English, Traditional Chinese, Japanese, Korean, Indonesian and Simplified Chinese.
+
+The Fluent-style interface provides white shortcut fields, clearer start and stop controls, and a strategy guide centered on the program window. The language label uses the selected language’s name for “language” alongside “Language”.
 
 ## Download and run
 
 Download **HololiveDreamsHighLowAuto.exe** from the [latest release](https://github.com/harrykuang-dev/Hololive-Dreams-High-low-Auto-Personal/releases/latest) and run it. Templates, OCR models and required resources are bundled in the single executable and extracted temporarily at startup.
 
 1. Open High & Low in the game.
-2. Select a strategy; the original strategy is the default.
+2. Select Conservative or Aggressive; Conservative is the default. Click the question mark beside Strategy for an explanation.
 3. Press **F8** to start and **INSERT** to stop, or use the interface buttons.
 
 Click a shortcut field and press a key or a Ctrl / Alt / Shift combination to change it. **Esc** cancels capture. Start and stop shortcuts must differ. Num Lock does not add an Alt modifier.
@@ -20,7 +22,9 @@ Coins today shows confirmed rewards. Net profit is **confirmed rewards − 50 ×
 
 `daily_coins.json` stores the daily rewards, round counts and three-stage progress. `settings.json` stores the language, strategy and shortcuts. Stop the program before upgrading and keep both files beside the new EXE.
 
-Old same-day records without win counts retain their existing rewards but show unavailable net profit. Historical entry costs are not estimated; complete accounting resumes on the next date. Logs and screenshots are not saved.
+Daily records and three-stage progress reset at **04:00 on the computer’s local clock**. The **Reset daily records** button resets rewards, net profit, round counts and three-stage progress after confirmation. Use manual reset when the server and computer use different time zones.
+
+Old same-day records without win counts retain their existing rewards but show unavailable net profit. Historical entry costs are not estimated; complete accounting resumes at the next daily reset. Logs and screenshots are not saved.
 
 ## Run from source and build
 
@@ -34,6 +38,6 @@ Output: `dist/HololiveDreamsHighLowAuto.exe`.
 
 ## Documentation and licenses
 
-[Three-stage strategy](THREE_STAGE.md) · [Game terminology](docs/GAME_TERMS.md) · [Reward OCR](docs/OCR.md) · [v1.1.0 release notes](docs/RELEASE-1.1.0.md) · [Version history](HISTORY.md)
+[Three-stage strategy](THREE_STAGE.md) · [Game terminology](docs/GAME_TERMS.md) · [Reward OCR](docs/OCR.md) · [v1.1.1 release notes](docs/RELEASE-1.1.1.md) · [Version history](HISTORY.md)
 
 Card recognition and hold-card strategy are based on [hololive-dreams-helper](https://github.com/Oreki0504/hololive-dreams-helper). Its [MIT notice](licenses/poker-core-MIT.txt) and other required license notices are retained in [licenses](licenses/).

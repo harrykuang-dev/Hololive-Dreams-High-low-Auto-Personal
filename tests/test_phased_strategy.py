@@ -106,12 +106,13 @@ class StrategyTests(unittest.TestCase):
                 path.write_text(json.dumps(data))
                 self.assertEqual(bot.load_daily_stage(), 0)
 
-    def run_frames(self, frames, mode='phased', stage=0):
+    def run_frames(self, frames, mode='phased', stage=0, rollover_at=None):
         frames = iter(frames)
         current = ['UNKNOWN', 0]
         clock = [0.0]
         tracking_capture = [False]
         writes, clicks = [], []
+        self.saved_days=[]
         image = np.zeros((1080, 1920, 3), dtype=np.uint8)
 
         def capture():
@@ -139,6 +140,10 @@ class StrategyTests(unittest.TestCase):
             clicks.append((current[0], current[1], Path(tpl).name))
             return True
 
+        def save(*args,**kwargs):
+            writes.append(args)
+            self.saved_days.append(kwargs.get('day'))
+
         with patch.object(bot, 'capture_game_window', side_effect=capture), \
              patch.object(bot, 'detect_game_state', side_effect=lambda _: 'ASK_CHALLENGE' if current[0] == 'SUCCESS' else current[0]), \
              patch.object(bot, 'CardRecognizer', return_value=SimpleNamespace(recognize_card=lambda *a: SimpleNamespace(card_id=20, rank='7'))), \
@@ -150,7 +155,8 @@ class StrategyTests(unittest.TestCase):
              patch.object(bot, 'load_daily_data', return_value=(0, 0)), \
              patch.object(bot, 'load_daily_stage', return_value=stage), \
              patch.object(bot, 'load_daily_wins', return_value=(0, True)), \
-             patch.object(bot, 'save_daily_data', side_effect=lambda *a: writes.append(a)), \
+             patch.object(bot, 'save_daily_data', side_effect=save), \
+             patch.object(bot, 'record_day', side_effect=lambda: '2026-10-11' if rollover_at is not None and clock[0]>=rollover_at else '2026-10-10'), \
              patch.object(bot.time, 'sleep', side_effect=sleep), \
              patch.object(bot.time, 'monotonic', side_effect=lambda: clock[0]), \
              contextlib.redirect_stdout(io.StringIO()):
@@ -161,6 +167,23 @@ class StrategyTests(unittest.TestCase):
             finally:
                 bot.bot_running = False
         return writes, clicks
+
+    def test_running_rollover_keeps_result_deduplication_and_credits_only_new_round(self):
+        frames=[('RESULT',400)]*15+[('START_BET',0)]+[('RESULT',200)]*12
+        writes,_=self.run_frames(frames,mode='legacy',rollover_at=4)
+        self.assertEqual(writes,[(400,0,None,1,True),(0,0,0,0,True),(200,0,None,1,True)])
+        self.assertEqual(self.saved_days,['2026-10-10','2026-10-11','2026-10-11'])
+
+    def test_running_rollover_does_not_count_the_same_failure_again(self):
+        frames=[('FAIL',0)]*3+[('START_BET',0),('FAIL',0)]
+        writes,_=self.run_frames(frames,mode='legacy',rollover_at=.6)
+        self.assertEqual(writes,[(0,1,None,0,True),(0,0,0,0,True),(0,1,None,0,True)])
+
+    def test_rollover_during_phased_settlement_preserves_expected_reward(self):
+        frames=[('ASK_CHALLENGE',800)]*2+[('HIGH_LOW',0)]+[('RESULT',800)]*12
+        writes,_=self.run_frames(frames,stage=1,rollover_at=2)
+        self.assertEqual(writes,[(0,0,0,0,True),(800,0,1,1,True)])
+        self.assertEqual(self.saved_days,['2026-10-11','2026-10-11'])
 
     def test_full_three_stage_loop_and_failure_retry(self):
         frames = [('FAIL', 0), ('START_BET', 0)]

@@ -1,6 +1,12 @@
 # Version history
 
-Current release: [v1.1.0](docs/RELEASE-1.1.0.md).
+Current release: [v1.1.1](docs/RELEASE-1.1.1.md).
+
+## v1.1.0 — Superseded
+
+- Added a six-language Windows interface and custom start and stop shortcuts.
+- Corrected net profit to deduct the entry cost for winning and losing rounds.
+- Bundled templates, OCR models and required resources in a single executable.
 
 ## v1.0.4 — Superseded
 

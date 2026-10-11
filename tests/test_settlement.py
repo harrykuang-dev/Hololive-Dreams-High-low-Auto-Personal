@@ -28,7 +28,8 @@ class SettlementTests(unittest.TestCase):
                    reward_reader=ChallengeRewardReader(), phased=None, expected_cashout=None,
                    img=None, RESULT_REWARD_ZONE=None, TPL_CHECK=None,
                    win_left=0, win_top=0,
-                   save_daily_data=lambda c, *args: writes.append(c),
+                   save_daily_data=lambda c, *args, **kwargs: writes.append(c),
+                   refresh_record_day=lambda:None, session_day='2026-10-11',
                    calculate_net_profit=net_profit, emit_stats=lambda:None, emit=lambda *a,**k:None,
                    find_and_click_icon=lambda *a, **kw: clicks.append(True))
         env['read_result_number'] = lambda *a: env['amount']

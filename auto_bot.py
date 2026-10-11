@@ -19,7 +19,8 @@ from settlement import SettlementReader
 from reward_vision import read_challenge_number, read_result_number as read_result_digits
 from challenge_reward import ChallengeRewardReader
 from phased_strategy import PhasedStrategy
-from daily_accounting import load_wins, net_profit as calculate_net_profit
+from daily_accounting import (load_wins, read_record, write_record, empty_record,
+                              record_day, net_profit as calculate_net_profit)
 
 try:
     # Windows source-mode runs otherwise inherit a legacy console encoding and
@@ -464,66 +465,84 @@ def read_result_number(img, search_zone):
 
 
 # ================= 3. 数据与主循环 =================
-def load_daily_data():
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                if data.get("date") == time.strftime("%Y-%m-%d"):
-                    return data.get("coins", 0), data.get("fails", 0)
-        except Exception:
-            pass
-    return 0, 0
+def load_daily_data(day=None):
+    data = read_record(Path(DATA_FILE), day)
+    return data.get('coins', 0), data.get('fails', 0)
 
 
-def load_daily_stage():
-    if not Path(DATA_FILE).exists():
-        return 0
-    with open(DATA_FILE, encoding='utf-8') as f:
-        data = json.load(f)
-    stage = data.get('phased_stage', 0) if data.get('date') == time.strftime('%Y-%m-%d') else 0
+def load_daily_stage(day=None):
+    data = read_record(Path(DATA_FILE), day)
+    stage = data.get('phased_stage', 0)
     if type(stage) is not int or not 0 <= stage <= 3:
         raise ValueError('保存的策略阶段无效，请检查 daily_coins.json')
     return stage
 
 
-def load_daily_wins():
-    return load_wins(Path(DATA_FILE))
+def load_daily_wins(day=None):
+    return load_wins(Path(DATA_FILE), day)
 
 
-def save_daily_data(coins, fails, stage=None, wins=None, wins_complete=None):
+def ensure_daily_data(day=None):
+    """Persist a rollover or legacy date migration without estimating amounts."""
+    path = Path(DATA_FILE)
+    if path.exists():
+        original = json.loads(path.read_text(encoding='utf-8'))
+        current = read_record(path, day)
+        if current != original:
+            write_record(path, current)
+
+
+def reset_daily_data(day=None):
+    write_record(Path(DATA_FILE), empty_record(day))
+
+
+def save_daily_data(coins, fails, stage=None, wins=None, wins_complete=None, *, day=None):
     # Save coins and stage together; legacy mode preserves the saved stage.
+    day = record_day() if day is None else day
     if stage is None:
-        stage = load_daily_stage()
-    previous_wins, previous_complete = load_daily_wins()
+        stage = load_daily_stage(day)
+    previous_wins, previous_complete = load_daily_wins(day)
     wins = previous_wins if wins is None else wins
     wins_complete = previous_complete if wins_complete is None else wins_complete
-    temporary = Path(DATA_FILE).with_suffix('.tmp')
-    with temporary.open('w', encoding='utf-8') as f:
-        json.dump({"coins": coins, "fails": fails, "date": time.strftime("%Y-%m-%d"),
-                   "phased_stage": stage, "wins": wins, "wins_complete": wins_complete}, f)
-    os.replace(temporary, DATA_FILE)
+    data = empty_record(day)
+    data.update(coins=coins, fails=fails, phased_stage=stage, wins=wins, wins_complete=wins_complete)
+    write_record(Path(DATA_FILE), data)
 
 
 def auto_play_loop(mode='legacy', notify=None):
     global upcoming_card_val
     if mode not in ('legacy', 'phased'):
         raise ValueError('Unknown strategy mode')
-    phased = PhasedStrategy(load_daily_stage()) if mode == 'phased' else None
+    session_day = record_day()
+    phased = PhasedStrategy(load_daily_stage(session_day)) if mode == 'phased' else None
     if phased is not None and phased.complete:
         print('[三阶段] 今日三个目标均已完成，停止挂机。')
         return
     counter = HighLowCounter()
     card_rec = CardRecognizer(TEMPLATE_DIR)
-    daily_coins, daily_fails = load_daily_data()
-    daily_wins, wins_complete = load_daily_wins()
+    daily_coins, daily_fails = load_daily_data(session_day)
+    daily_wins, wins_complete = load_daily_wins(session_day)
     net_profit = calculate_net_profit(daily_coins, daily_fails, daily_wins, wins_complete)
     def emit(kind, **values):
         if notify is not None:
             notify(kind, values)
     def emit_stats():
         emit('stats', coins=daily_coins, fails=daily_fails, wins=daily_wins,
-             profit=net_profit, complete=wins_complete)
+             profit=net_profit, complete=wins_complete, day=session_day)
+    def refresh_record_day():
+        nonlocal session_day, daily_coins, daily_fails, daily_wins, wins_complete, net_profit
+        current_day = record_day()
+        if current_day != session_day:
+            session_day = current_day
+            daily_coins = daily_fails = daily_wins = net_profit = 0
+            wins_complete = True
+            # Keep the current round's OCR expectations and deduplication state.
+            # The new day's strategy progress starts at stage one.
+            if phased is not None:
+                phased.stage = 0
+            save_daily_data(0, 0, 0, 0, True, day=session_day)
+            emit_stats()
+            emit('daily_reset')
     emit_stats()
     last_state = None
     print(f"开始自动挂机... 当日累计代币: {daily_coins} | 累计失败: {daily_fails} 次 | 今日净利润: {net_profit}")
@@ -542,6 +561,7 @@ def auto_play_loop(mode='legacy', notify=None):
         return False
 
     while daily_coins < 20000 and bot_running :
+        refresh_record_day()
         img, win_left, win_top = capture_game_window()
         if img is None:
             if last_state != 'NO_WINDOW':
@@ -800,9 +820,10 @@ def auto_play_loop(mode='legacy', notify=None):
 
         elif current_state == "FAIL":
             if not has_recorded_fail:
+                refresh_record_day()
                 daily_fails += 1
                 net_profit = calculate_net_profit(daily_coins, daily_fails, daily_wins, wins_complete)
-                save_daily_data(daily_coins, daily_fails, None, daily_wins, wins_complete)
+                save_daily_data(daily_coins, daily_fails, None, daily_wins, wins_complete, day=session_day)
                 emit_stats()
                 emit('failed')
                 print(
@@ -827,6 +848,7 @@ def auto_play_loop(mode='legacy', notify=None):
                 if earned is None:
                     time.sleep(.2)
                     continue
+                refresh_record_day()
                 daily_coins += earned
                 daily_wins += 1
                 net_profit = calculate_net_profit(daily_coins, daily_fails, daily_wins, wins_complete)
@@ -835,10 +857,10 @@ def auto_play_loop(mode='legacy', notify=None):
 
                 if phased is not None:
                     next_stage = phased.stage_after_credit(earned)
-                    save_daily_data(daily_coins, daily_fails, next_stage, daily_wins, wins_complete)
+                    save_daily_data(daily_coins, daily_fails, next_stage, daily_wins, wins_complete, day=session_day)
                     phased.stage = next_stage
                 else:
-                    save_daily_data(daily_coins, daily_fails, None, daily_wins, wins_complete)
+                    save_daily_data(daily_coins, daily_fails, None, daily_wins, wins_complete, day=session_day)
                 has_tallied = True
                 emit_stats()
                 emit('credit', amount=earned)
