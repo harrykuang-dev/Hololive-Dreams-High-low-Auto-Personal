@@ -160,12 +160,11 @@ class HololiveBotUI:
         self.log.configure(yscrollcommand=scroll.set)
         scroll.pack(side='right',fill='y')
         self.log.pack(fill='both',expand=True)
-        label('footer',9,'Muted.TLabel',(self.px(10),0))
         main.bind('<Configure>',self.resize_text)
 
     def resize_text(self,event):
         width=max(self.px(200),event.width-self.px(48))
-        for widget in (self.title_label,self.instructions,self.profit_label,self.footer):
+        for widget in (self.title_label,self.instructions,self.profit_label):
             widget.configure(wraplength=width)
 
     def apply_language(self):
@@ -177,7 +176,7 @@ class HololiveBotUI:
         for widget,key in ((self.title_label,'title'),(self.instructions,'instructions'),
             (self.language_label,'language'),(self.strategy_label,'strategy'),
             (self.start_key_label,'start_key'),(self.stop_key_label,'stop_key'),
-            (self.start_button,'start'),(self.stop_button,'stop'),(self.footer,'footer')):
+            (self.start_button,'start'),(self.stop_button,'stop')):
             widget.configure(text=self.tr(key))
         self.refresh_stats()
         self.status.configure(text=self.tr(self.state_key))

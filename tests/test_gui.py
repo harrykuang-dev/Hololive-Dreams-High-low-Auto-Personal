@@ -114,7 +114,7 @@ class InterfaceTests(unittest.TestCase):
             self.app.apply_language()
             self.root.update_idletasks()
             for widget in (self.app.start_entry,self.app.stop_entry,self.app.start_button,
-                           self.app.stop_button,self.app.footer):
+                           self.app.stop_button):
                 x=widget.winfo_rootx()-self.root.winfo_rootx()
                 y=widget.winfo_rooty()-self.root.winfo_rooty()
                 self.assertGreaterEqual(x,0)
