@@ -4,21 +4,19 @@
 
 A Windows program that automates High & Low with Conservative (original) and Aggressive (three-stage) strategies. The interface supports English, Traditional Chinese, Japanese, Korean, Indonesian and Simplified Chinese.
 
-The Fluent-style interface provides white shortcut fields, clearer start and stop controls, and a strategy guide centered on the program window. The language label uses the selected language’s name for “language” alongside “Language”.
-
 ## Download and run
 
 Download **HololiveDreamsHighLowAuto.exe** from the [latest release](https://github.com/harrykuang-dev/Hololive-Dreams-High-low-Auto-Personal/releases/latest) and run it. Templates, OCR models and required resources are bundled in the single executable and extracted temporarily at startup.
 
 1. Open High & Low in the game.
-2. Select Conservative or Aggressive; Conservative is the default. Click the question mark beside Strategy for an explanation.
+2. Select Conservative or Aggressive; Conservative is the default.
 3. Press **F8** to start and **INSERT** to stop, or use the interface buttons.
 
-Click a shortcut field and press a key or a Ctrl / Alt / Shift combination to change it. **Esc** cancels capture. Start and stop shortcuts must differ. Num Lock does not add an Alt modifier.
+Click a shortcut field and press a key or a Ctrl / Alt / Shift combination to change it. **Esc** cancels capture. Start and stop shortcuts must differ.
 
 ## Records and net profit
 
-Coins today shows confirmed rewards. Net profit is **confirmed rewards − 50 × (winning rounds + losing rounds)**. Each settled winning round also costs 50 Coins; this deduction changes the displayed net profit without changing reward amounts or strategy decisions.
+Coins today shows confirmed rewards. Net profit is **confirmed rewards − 50 × (winning rounds + losing rounds)**.
 
 `daily_coins.json` stores the daily rewards, round counts and three-stage progress. `settings.json` stores the language, strategy and shortcuts. Stop the program before upgrading and keep both files beside the new EXE.
 
