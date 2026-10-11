@@ -19,6 +19,7 @@ from settlement import SettlementReader
 from reward_vision import read_challenge_number, read_result_number as read_result_digits
 from challenge_reward import ChallengeRewardReader
 from phased_strategy import PhasedStrategy
+from daily_accounting import load_wins, net_profit as calculate_net_profit
 
 try:
     # Windows source-mode runs otherwise inherit a legacy console encoding and
@@ -486,18 +487,25 @@ def load_daily_stage():
     return stage
 
 
-def save_daily_data(coins, fails, stage=None):
+def load_daily_wins():
+    return load_wins(Path(DATA_FILE))
+
+
+def save_daily_data(coins, fails, stage=None, wins=None, wins_complete=None):
     # Save coins and stage together; legacy mode preserves the saved stage.
     if stage is None:
         stage = load_daily_stage()
+    previous_wins, previous_complete = load_daily_wins()
+    wins = previous_wins if wins is None else wins
+    wins_complete = previous_complete if wins_complete is None else wins_complete
     temporary = Path(DATA_FILE).with_suffix('.tmp')
     with temporary.open('w', encoding='utf-8') as f:
         json.dump({"coins": coins, "fails": fails, "date": time.strftime("%Y-%m-%d"),
-                   "phased_stage": stage}, f)
+                   "phased_stage": stage, "wins": wins, "wins_complete": wins_complete}, f)
     os.replace(temporary, DATA_FILE)
 
 
-def auto_play_loop(mode='legacy'):
+def auto_play_loop(mode='legacy', notify=None):
     global upcoming_card_val
     if mode not in ('legacy', 'phased'):
         raise ValueError('Unknown strategy mode')
@@ -508,7 +516,16 @@ def auto_play_loop(mode='legacy'):
     counter = HighLowCounter()
     card_rec = CardRecognizer(TEMPLATE_DIR)
     daily_coins, daily_fails = load_daily_data()
-    net_profit = daily_coins - (daily_fails * 50)
+    daily_wins, wins_complete = load_daily_wins()
+    net_profit = calculate_net_profit(daily_coins, daily_fails, daily_wins, wins_complete)
+    def emit(kind, **values):
+        if notify is not None:
+            notify(kind, values)
+    def emit_stats():
+        emit('stats', coins=daily_coins, fails=daily_fails, wins=daily_wins,
+             profit=net_profit, complete=wins_complete)
+    emit_stats()
+    last_state = None
     print(f"开始自动挂机... 当日累计代币: {daily_coins} | 累计失败: {daily_fails} 次 | 今日净利润: {net_profit}")
 
     has_tallied = False
@@ -527,11 +544,17 @@ def auto_play_loop(mode='legacy'):
     while daily_coins < 20000 and bot_running :
         img, win_left, win_top = capture_game_window()
         if img is None:
+            if last_state != 'NO_WINDOW':
+                emit('state', state='NO_WINDOW')
+                last_state = 'NO_WINDOW'
             print("未找到游戏窗口，请确保游戏没有被完全最小化...")
             time.sleep(1)
             continue
 
         current_state = detect_game_state(img)
+        if current_state != last_state:
+            emit('state', state=current_state)
+            last_state = current_state
 
         # Only a new round resets accounting; UNKNOWN may be a result flicker.
         if current_state in ("START_BET", "HOLD_CARDS"):
@@ -545,20 +568,6 @@ def auto_play_loop(mode='legacy'):
             reward_reader.reset_prompt()
         if current_state != "FAIL":
             has_recorded_fail = False
-
-        # === 实时渲染 GUI 画面 ===
-        display_img = img.copy()
-        cv2.putText(display_img, f"State: {current_state}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3)
-        cv2.putText(display_img, f"Coins: {daily_coins} / {TARGET_LIMIT}", (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.2,
-                    (0, 255, 255), 3)
-        if current_state == "UNKNOWN":
-            cv2.putText(display_img, "Waiting for match...", (20, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-        #cv2.imshow("Auto Bot GUI", display_img)
-
-        #if cv2.waitKey(1) & 0xFF == ord('q'):
-            #print("收到退出指令，结束挂机。")
-            #break
-        # =========================
 
         if current_state == "UNKNOWN":
             time.sleep(0.5)
@@ -792,8 +801,10 @@ def auto_play_loop(mode='legacy'):
         elif current_state == "FAIL":
             if not has_recorded_fail:
                 daily_fails += 1
-                net_profit = daily_coins - (daily_fails * 50)
-                save_daily_data(daily_coins, daily_fails)
+                net_profit = calculate_net_profit(daily_coins, daily_fails, daily_wins, wins_complete)
+                save_daily_data(daily_coins, daily_fails, None, daily_wins, wins_complete)
+                emit_stats()
+                emit('failed')
                 print(
                     f"\n💔 对局失败！累计失败: {daily_fails} 次 (门票损失: {daily_fails * 50}) | 今日净利润: {net_profit}")
                 has_recorded_fail = True
@@ -817,17 +828,20 @@ def auto_play_loop(mode='legacy'):
                     time.sleep(.2)
                     continue
                 daily_coins += earned
-                net_profit = daily_coins - (daily_fails * 50)
+                daily_wins += 1
+                net_profit = calculate_net_profit(daily_coins, daily_fails, daily_wins, wins_complete)
                 print(
                     f"💰 成功入账: {earned} ! 当前总金币: {daily_coins} | 累计失败: {daily_fails} 次 | 今日净利润: {net_profit}")
 
                 if phased is not None:
                     next_stage = phased.stage_after_credit(earned)
-                    save_daily_data(daily_coins, daily_fails, next_stage)
+                    save_daily_data(daily_coins, daily_fails, next_stage, daily_wins, wins_complete)
                     phased.stage = next_stage
                 else:
-                    save_daily_data(daily_coins, daily_fails)
+                    save_daily_data(daily_coins, daily_fails, None, daily_wins, wins_complete)
                 has_tallied = True
+                emit_stats()
+                emit('credit', amount=earned)
 
             time.sleep(0.8)
             find_and_click_icon(img, TPL_CHECK, win_left, win_top, threshold=0.55)

@@ -13,3 +13,7 @@ test/
 新建文件夹/
 debug/
 logs/
+
+daily_coins.tmp
+settings.json
+settings.tmp

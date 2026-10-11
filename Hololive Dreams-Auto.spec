@@ -10,9 +10,8 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 # Bundle runtime assets so no manual post-build copy step is required.
 datas += [
     ('templates', 'templates'),
-    ('background.png', '.'),
     ('icon.ico', '.'),
-    ('icon_transparent.png', '.'),
+    ('licenses', 'licenses'),
 ]
 
 
@@ -34,9 +33,10 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
-    name='Hololive Dreams-Auto',
+    name='HololiveDreamsHighLowAuto',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -48,13 +48,4 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['icon.ico'],
-)
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='Hololive Dreams-Auto',
 )

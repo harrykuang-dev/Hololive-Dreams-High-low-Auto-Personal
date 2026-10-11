@@ -149,6 +149,7 @@ class StrategyTests(unittest.TestCase):
              patch.object(bot, 'find_and_click_icon', side_effect=click), \
              patch.object(bot, 'load_daily_data', return_value=(0, 0)), \
              patch.object(bot, 'load_daily_stage', return_value=stage), \
+             patch.object(bot, 'load_daily_wins', return_value=(0, True)), \
              patch.object(bot, 'save_daily_data', side_effect=lambda *a: writes.append(a)), \
              patch.object(bot.time, 'sleep', side_effect=sleep), \
              patch.object(bot.time, 'monotonic', side_effect=lambda: clock[0]), \
@@ -172,7 +173,8 @@ class StrategyTests(unittest.TestCase):
             frames.extend([('RESULT', payout)] * 12)
             frames.extend([('UNKNOWN', 0), ('RESULT', payout), ('START_BET', 0)])
         writes, clicks = self.run_frames(frames)
-        self.assertEqual(writes, [(0, 1), (12800, 1, 1), (18400, 1, 2), (31200, 1, 3)])
+        self.assertEqual(writes, [(0, 1, None, 0, True), (12800, 1, 1, 1, True),
+                                  (18400, 1, 2, 2, True), (31200, 1, 3, 3, True)])
         # The two success frames may retry a cashout, but only in stage two.
         self.assertEqual([state for state, reward, tpl in clicks if tpl == 'tpl_cross.png'],
                          ['SUCCESS', 'SUCCESS'])

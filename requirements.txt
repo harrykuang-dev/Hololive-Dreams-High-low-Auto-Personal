@@ -3,7 +3,6 @@ ddddocr
 numba
 numpy
 pillow
-keyboard
 pygetwindow
 mss
 pydirectinput

@@ -7,6 +7,7 @@ import unittest
 
 from settlement import SettlementReader
 from challenge_reward import ChallengeRewardReader
+from daily_accounting import net_profit
 
 
 class SettlementTests(unittest.TestCase):
@@ -22,17 +23,21 @@ class SettlementTests(unittest.TestCase):
         runner = ast.parse('for current_state, now, amount in frames:\n    pass')
         runner.body[0].body = [reset, ast.If(test=result.test, body=result.body, orelse=[])]
         writes, clicks = [], []
-        env = dict(frames=frames, daily_coins=360, daily_fails=0,
+        env = dict(frames=frames, daily_coins=360, daily_fails=0, daily_wins=1, wins_complete=True,
                    has_tallied=False, settlement_reader=SettlementReader(),
                    reward_reader=ChallengeRewardReader(), phased=None, expected_cashout=None,
                    img=None, RESULT_REWARD_ZONE=None, TPL_CHECK=None,
                    win_left=0, win_top=0,
-                   save_daily_data=lambda c, f: writes.append(c),
+                   save_daily_data=lambda c, *args: writes.append(c),
+                   calculate_net_profit=net_profit, emit_stats=lambda:None, emit=lambda *a,**k:None,
                    find_and_click_icon=lambda *a, **kw: clicks.append(True))
         env['read_result_number'] = lambda *a: env['amount']
         env['time'] = types.SimpleNamespace(monotonic=lambda: env['now'], sleep=lambda _: None)
         with contextlib.redirect_stdout(io.StringIO()):
             exec(compile(ast.fix_missing_locations(runner), '<accounting>', 'exec'), env)
+        self.assertEqual(env['daily_wins'], 1+len(writes))
+        if writes:
+            self.assertEqual(env['net_profit'], env['daily_coins']-50*env['daily_wins'])
         return env['daily_coins'], writes, clicks
 
     def test_count_up_then_stable_400(self):

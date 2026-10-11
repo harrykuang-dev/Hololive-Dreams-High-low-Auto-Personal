@@ -1,485 +1,351 @@
+"""Lightweight native interface. All Tk operations run on the main thread."""
 import ctypes
-
-# Configure DPI before Tk or any capture/input library creates a window. This
-# keeps template coordinates aligned on scaled and multi-monitor desktops.
 try:
     ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
-except Exception:
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('HololiveDreams.HighLowAuto.Personal')
+except (AttributeError, OSError):
     pass
 
-import tkinter as tk
-from tkinter import ttk
-import threading
-import sys
-import os
+import contextlib
 import json
-import time
-import re
-from PIL import Image, ImageTk
-import keyboard
-
+import queue
+import threading
+import tkinter as tk
+from tkinter import font, ttk
+from app_locale import APP_VERSION, LANGUAGES, text, error_message
+from daily_accounting import net_profit
+from global_hotkey import GlobalHotkey
+from hotkey_settings import captured_hotkey, parse_stop_hotkey
 import auto_bot
 
-# 🚀 必须在窗口创建前执行：通知 Windows 这是一个独立应用，强制任务栏绑定自身图标
-try:
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("hololive.dreams.autobot.v1")
-except Exception:
-    pass
+SETTINGS_FILE = auto_bot.APP_DIR / 'settings.json'
 
-# ================= 多语言翻译字典 =================
-TRANSLATIONS = {
-    "zh": {
-        "title": "Hololive Dreams 自动猜高低",
-        "lang_label": "界面语言",
-        "hotkey_label": "停止快捷键",
-        "status_idle": "状态：等待启动",
-        "coins_prefix": "金币：{coins} / 20000",
-        "btn_exit": "退出",
-        "btn_start": "启动挂机",
-        "btn_stop": "停止挂机",
-        "btn_bg": "切换背景",
-        "btn_running": "运行中..."
-    },
-    "tw": {
-        "title": "Hololive Dreams 自動猜高低",
-        "lang_label": "介面語言",
-        "hotkey_label": "停止快捷鍵",
-        "status_idle": "狀態：等待啟動",
-        "coins_prefix": "金幣：{coins} / 20000",
-        "btn_exit": "退出",
-        "btn_start": "啟動掛機",
-        "btn_stop": "停止掛機",
-        "btn_bg": "切換背景",
-        "btn_running": "運行中..."
-    },
-    "en": {
-        "title": "Hololive Dreams Auto Bot",
-        "lang_label": "Language",
-        "hotkey_label": "Stop Hotkey",
-        "status_idle": "Status: Waiting",
-        "coins_prefix": "Coins: {coins} / 20000",
-        "btn_exit": "Exit",
-        "btn_start": "Start Bot",
-        "btn_stop": "Stop Bot",
-        "btn_bg": "Toggle BG",
-        "btn_running": "Running..."
-    },
-    "ja": {
-        "title": "Hololive Dreams 自動Bot",
-        "lang_label": "言語",
-        "hotkey_label": "停止ショートカット",
-        "status_idle": "ステータス: 待機中",
-        "coins_prefix": "コイン: {coins} / 20000",
-        "btn_exit": "終了",
-        "btn_start": "起動",
-        "btn_stop": "停止",
-        "btn_bg": "背景切替",
-        "btn_running": "実行中..."
-    }
-}
+class NullOutput:
+    def write(self, _message): pass
+    def flush(self): pass
 
-
-STRATEGY_LABELS = {
-    'zh': ('1.0.1 原版', '三阶段：最大 → 计次 → 最大'),
-    'tw': ('1.0.1 原版', '三階段：最大 → 計次 → 最大'),
-    'en': ('1.0.1 Legacy', '3 stages: Max → Win count → Max'),
-    'ja': ('1.0.1 従来モード', '3段階：最大 → 成功回数 → 最大'),
-}
-
-
-def get_local_data():
-    if auto_bot.DATA_FILE.exists():
+class HololiveBotUI:
+    BG, TEXT, MUTED = '#f3f3f3', '#202020', '#666666'
+    def __init__(self, root, *, hotkey_factory=GlobalHotkey, runner=auto_bot.auto_play_loop):
+        self.root, self.runner = root, runner
+        self.worker = None
+        self.messages = queue.Queue(maxsize=256)
+        self.closing = self.running = self.stopping = self.has_error = False
+        self.capture_target = None
+        self.generation = 0
+        self.state_key = 'ready'
+        self.history = []
+        self.stats = self.read_stats()
+        settings = self.load_settings()
+        self.language = tk.StringVar(root, settings['language'])
+        self.strategy = tk.StringVar(root)
+        self.start_key, self.stop_key = settings['start_key'], settings['stop_key']
+        self.start_display = tk.StringVar(root, self.start_key)
+        self.stop_display = tk.StringVar(root, self.stop_key)
+        self.mode_index = settings['strategy']
         try:
-            with auto_bot.DATA_FILE.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-                if data.get("date") == time.strftime("%Y-%m-%d"):
-                    c = data.get("coins", 0)
-                    fl = data.get("fails", 0)
-                    return c, fl, c - (fl * 50)
-        except:
-            pass
-    return 0, 0, 0
+            self.scale = (ctypes.windll.user32.GetDpiForWindow(root.winfo_id()) or 96)/96
+        except (AttributeError, OSError):
+            self.scale = root.winfo_fpixels('1i')/96
+        # Keep the full form visible on smaller screens and high-DPI displays.
+        self.scale = min(self.scale,(root.winfo_screenwidth()-60)/660,
+                         (root.winfo_screenheight()-100)/740)
+        root.tk.call('tk', 'scaling', self.scale*96/72)
+        for name in ('TkDefaultFont', 'TkTextFont', 'TkMenuFont', 'TkHeadingFont'):
+            font.nametofont(name).configure(family='Segoe UI', size=11)
+        root.configure(bg=self.BG)
+        root.geometry(f'{self.px(660)}x{self.px(740)}')
+        root.minsize(self.px(550), self.px(660))
+        root.protocol('WM_DELETE_WINDOW', self.close)
+        try: root.iconbitmap(str(auto_bot.RESOURCE_DIR/'icon.ico'))
+        except tk.TclError: pass
+        self.build()
+        self.apply_language()
+        self.start_hotkey = hotkey_factory(lambda:self.post('start_hotkey', generation=self.generation),
+            lambda key,ok,error:self.post('hotkey_status', key=key, ok=ok), value=self.start_key)
+        self.stop_hotkey = hotkey_factory(lambda:self.post('stop_hotkey', generation=self.generation),
+            lambda key,ok,error:self.post('hotkey_status', key=key, ok=ok), value=self.stop_key)
+        self.start_hotkey.start()
+        self.stop_hotkey.start()
+        root.bind('<Button-1>', self.cancel_capture, add='+')
+        root.after(50, self.poll)
 
+    def px(self, value): return round(value*self.scale)
+    def tr(self, key, **values): return text(LANGUAGES[self.language.get()], key, **values)
 
-# ================= 拦截底层输出，虚拟滚动核心引擎 =================
-class RedirectText:
-    def __init__(self, ui):
-        self.ui = ui
-        self.raw_text = ""
+    @staticmethod
+    def read_stats():
+        coins, fails = auto_bot.load_daily_data()
+        wins, complete = auto_bot.load_daily_wins()
+        return dict(coins=coins, fails=fails, wins=wins, complete=complete,
+                    profit=net_profit(coins, fails, wins, complete))
 
-    def write(self, string):
-        self.ui.after(0, self._write, string)
-
-    def _write(self, string):
-        if not string: return
-        self.raw_text += string
-
-        if "今日净利润:" in string:
-            m_profit = re.search(r"今日净利润:\s*([+-]?\d+)", string)
-            m_fails = re.search(r"累计失败:\s*(\d+)", string)
-            m_coins = re.search(r"当前总金币:\s*(\d+)", string) or re.search(r"当日累计代币:\s*(\d+)", string)
-
-            coins = int(m_coins.group(1)) if m_coins else self.ui.current_coins
-            fails = int(m_fails.group(1)) if m_fails else self.ui.current_fails
-            profit = int(m_profit.group(1)) if m_profit else self.ui.current_profit
-
-            self.ui.update_stats_display(coins, fails, profit)
-
-        if len(self.raw_text) > 15000:
-            self.raw_text = self.raw_text[-15000:]
-            newline_idx = self.raw_text.find('\n')
-            if newline_idx != -1:
-                self.raw_text = self.raw_text[newline_idx + 1:]
-
-        self.ui.log_lines = self.raw_text.split('\n')
-        self.ui.log_view_start = max(0, len(self.ui.log_lines) - self.ui.log_max_lines)
-        self.ui.update_log_view()
-
-    def flush(self):
-        pass
-
-    def clear(self):
-        self.raw_text = ""
-        self.ui.log_lines = []
-        self.ui.log_view_start = 0
-        self.ui.update_log_view()
-
-
-class HololiveBotUI(tk.Tk):
-    def __init__(self):
-        super().__init__()
-
-        self.bot_thread = None
-        self.is_running = False
-        self.current_lang = "zh"
-        self.show_bg = True
-
-        self.current_coins, self.current_fails, self.current_profit = get_local_data()
-
-        self.title(TRANSLATIONS[self.current_lang]["title"])
-        # 🚀 替换这里的两行：优先加载 PNG 图标，任务栏永不退化为白纸
+    @staticmethod
+    def load_settings():
+        defaults = dict(language='繁體中文', start_key='F8', stop_key='INSERT', strategy=0)
         try:
-            transparent_icon = auto_bot.RESOURCE_DIR / "icon_transparent.png"
-            png_icon = auto_bot.RESOURCE_DIR / "icon.png"
-            ico_icon = auto_bot.RESOURCE_DIR / "icon.ico"
-            if transparent_icon.exists():
-                self._app_icon = ImageTk.PhotoImage(file=str(transparent_icon))
-                self.iconphoto(True, self._app_icon)
-            elif png_icon.exists():
-                self._app_icon = ImageTk.PhotoImage(file=str(png_icon))
-                self.iconphoto(True, self._app_icon)
-            elif ico_icon.exists():
-                self.iconbitmap(str(ico_icon))
-        except Exception as e:
-            print(f"[警告] 图标加载失败: {e}")
+            saved = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+            if not isinstance(saved,dict): return defaults
+            if saved.get('language') not in LANGUAGES or saved.get('strategy') not in (0,1): return defaults
+            sm,sk = parse_stop_hotkey(saved['start_key'])
+            tm,tk = parse_stop_hotkey(saved['stop_key'])
+            if sk==tk and set(sm)==set(tm): return defaults
+            return {key:saved[key] for key in defaults}
+        except (OSError, ValueError, KeyError, TypeError): return defaults
 
-        self.geometry("450x800")
-        self.minsize(360, 640)
-
-        self.last_w = 450
-        self.last_h = 800
-
-        self.canvas = tk.Canvas(self, highlightthickness=0)
-        self.canvas.pack(fill="both", expand=True)
-
-        self.bg_image_path = auto_bot.RESOURCE_DIR / "background.png"
-        if self.bg_image_path.exists():
-            self.original_bg = Image.open(self.bg_image_path)
-        else:
-            self.original_bg = Image.new('RGB', (450, 800), color='#F0F0F0')
-            self.show_bg = False
-
-        self.bg_id = self.canvas.create_image(0, 0, anchor="nw")
-
-        font_title = ("Microsoft YaHei", 16, "bold")
-        font_normal = ("Microsoft YaHei", 12, "bold")
-        font_log = ("Microsoft YaHei", 12, "bold")
-
-        self.title_id = self.canvas.create_text(0, 0, font=font_title, fill="#111111")
-
-        self.lang_label_id = self.canvas.create_text(0, 0, font=font_normal, fill="#111111", anchor="w")
-        self.lang_keys = ["zh", "tw", "en", "ja"]
-        self.combo_lang = ttk.Combobox(self, values=["简体中文", "繁體中文", "English", "日本語"], state="readonly")
-        self.combo_lang.current(0)
-        self.combo_lang.bind("<<ComboboxSelected>>", self.change_language)
-        self.combo_window = self.canvas.create_window(0, 0, window=self.combo_lang, anchor="e")
-
-        self.hotkey_label_id = self.canvas.create_text(0, 0, font=font_normal, fill="#111111", anchor="w")
-        self.current_hotkey = "INSERT"
-        self.is_listening = False
-
-        self.btn_hotkey = ttk.Button(self, text=self.current_hotkey, command=self.start_listen_hotkey)
-        self.hotkey_window = self.canvas.create_window(0, 0, window=self.btn_hotkey, anchor="e")
-
-        keyboard.add_hotkey(self.current_hotkey, lambda: self.after(0, self.stop_bot))
-
-        self.status_id = self.canvas.create_text(0, 0, font=font_normal, fill="#111111", anchor="w")
-        self.coins_id = self.canvas.create_text(0, 0, font=font_normal, fill="#111111", anchor="w")
-
-        self.log_text_id = self.canvas.create_text(0, 0, font=font_log, fill="#000000", anchor="nw", justify="left")
-        self.log_lines = []
-        # 🚀 修改 1：因为长文字折行后会占用两行的空间，把最大行数稍微调小（从 16 降到 13），防止底部文字被截断
-        self.log_max_lines = 13
-        self.log_view_start = 0
-
-        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.scroll_log)
-        self.scrollbar_win = self.canvas.create_window(0, 0, window=self.scrollbar, anchor="ne")
-        self.canvas.bind("<MouseWheel>", self.on_mouse_wheel)
-
-        self.btn_next = ttk.Button(self, command=self.start_bot)
-        self.btn_stop = ttk.Button(self, command=self.stop_bot, state="disabled")
-        self.btn_bg = ttk.Button(self, command=self.toggle_bg)
-        self.btn_exit = ttk.Button(self, command=self.destroy)
-
-        self.btn_next_win = self.canvas.create_window(0, 0, window=self.btn_next)
-        self.btn_stop_win = self.canvas.create_window(0, 0, window=self.btn_stop)
-        self.btn_bg_win = self.canvas.create_window(0, 0, window=self.btn_bg)
-        self.btn_exit_win = self.canvas.create_window(0, 0, window=self.btn_exit)
-
-        self.combo_strategy = ttk.Combobox(self, state='readonly',
-                                           values=STRATEGY_LABELS[self.current_lang])
-        self.combo_strategy.current(0)
-        self.strategy_window = self.canvas.create_window(0, 0, window=self.combo_strategy, anchor='nw')
-        self.active_mode = 'legacy'
-
-        self.sys_redirector = RedirectText(self)
-        self.original_stdout = sys.stdout
-        sys.stdout = self.sys_redirector
-
-        self.canvas.bind("<Configure>", self.on_resize)
-        self.resize_after_id = None
-
-        self.refresh_texts()
-
-    def start_listen_hotkey(self):
-        if self.is_listening or self.is_running:
-            return
-
-        self.is_listening = True
-        self.btn_hotkey.configure(text="[按键...]")
-        print("\n[系统] 请点击键盘上想要切换的键...")
-
-        threading.Thread(target=self._listen_worker, daemon=True).start()
-
-    def _listen_worker(self):
-        time.sleep(0.1)
-        while True:
-            event = keyboard.read_event()
-            if event.event_type == keyboard.KEY_DOWN:
-                key = event.name.upper()
-                break
-
-        self.after(0, self._apply_new_hotkey, key)
-
-    def _apply_new_hotkey(self, new_key):
-        self.is_listening = False
+    def save_settings(self):
+        data = dict(language=self.language.get(), start_key=self.start_key,
+                    stop_key=self.stop_key, strategy=self.strategy_choice.current())
         try:
-            keyboard.remove_hotkey(self.current_hotkey)
-        except:
-            pass
+            temporary = SETTINGS_FILE.with_suffix('.tmp')
+            temporary.write_text(json.dumps(data,ensure_ascii=False),encoding='utf-8')
+            temporary.replace(SETTINGS_FILE)
+        except OSError: pass
 
-        self.current_hotkey = new_key
+    def build(self):
+        style = ttk.Style(self.root)
+        if 'vista' in style.theme_names(): style.theme_use('vista')
+        style.configure('TFrame', background=self.BG)
+        style.configure('TLabel', background=self.BG, foreground=self.TEXT)
+        style.configure('Muted.TLabel', foreground=self.MUTED)
+        style.configure('Title.TLabel', font=('Segoe UI',18,'bold'))
+        style.configure('Count.TLabel', font=('Segoe UI',16,'bold'))
+        style.configure('Action.TButton', padding=(self.px(12),self.px(10)))
+        main = ttk.Frame(self.root,padding=self.px(24))
+        main.pack(fill='both',expand=True)
+        main.columnconfigure(0,weight=1)
+        main.rowconfigure(8,weight=1)
+        def label(name,row,style='TLabel',pady=0):
+            widget = ttk.Label(main,style=style,wraplength=self.px(580),justify='left')
+            widget.grid(row=row,column=0,sticky='ew',pady=pady)
+            setattr(self,name,widget)
+        label('title_label',0,'Title.TLabel')
+        label('instructions',1,'Muted.TLabel',(self.px(8),self.px(12)))
+        label('status',2,'Muted.TLabel',(0,self.px(8)))
+        label('coins_label',3,'Count.TLabel')
+        label('profit_label',4,'TLabel',(self.px(4),0))
+        label('counts_label',5,'Muted.TLabel',(self.px(4),self.px(12)))
+        form = ttk.Frame(main)
+        form.grid(row=6,column=0,sticky='ew')
+        form.columnconfigure(1,weight=1)
+        for row,name in enumerate(('language_label','strategy_label','start_key_label','stop_key_label')):
+            widget=ttk.Label(form)
+            widget.grid(row=row,column=0,sticky='w',padx=(0,self.px(16)),pady=self.px(5))
+            setattr(self,name,widget)
+        self.language_choice=ttk.Combobox(form,textvariable=self.language,values=tuple(LANGUAGES),state='readonly')
+        self.language_choice.grid(row=0,column=1,sticky='ew',pady=self.px(5))
+        self.language_choice.bind('<<ComboboxSelected>>',self.change_language)
+        self.strategy_choice=ttk.Combobox(form,textvariable=self.strategy,state='readonly')
+        self.strategy_choice.grid(row=1,column=1,sticky='ew',pady=self.px(5))
+        self.strategy_choice.bind('<<ComboboxSelected>>',lambda _:self.save_settings())
+        for row,kind,variable in ((2,'start',self.start_display),(3,'stop',self.stop_display)):
+            entry=ttk.Entry(form,textvariable=variable,state='readonly')
+            entry.grid(row=row,column=1,sticky='ew',pady=self.px(5))
+            entry.bind('<Button-1>',lambda event,target=kind:self.begin_capture(target))
+            entry.bind('<FocusOut>',self.capture_focus_out)
+            entry.bind('<KeyPress>',self.capture_key)
+            setattr(self,kind+'_entry',entry)
+        controls=ttk.Frame(main)
+        controls.grid(row=7,column=0,sticky='ew',pady=(self.px(14),self.px(12)))
+        controls.columnconfigure((0,1),weight=1,uniform='actions')
+        self.start_button=ttk.Button(controls,style='Action.TButton',command=self.start)
+        self.stop_button=ttk.Button(controls,style='Action.TButton',command=self.stop,state='disabled')
+        self.start_button.grid(row=0,column=0,sticky='ew',padx=(0,self.px(6)))
+        self.stop_button.grid(row=0,column=1,sticky='ew',padx=(self.px(6),0))
+        activity=ttk.Frame(main)
+        activity.grid(row=8,column=0,sticky='nsew')
+        self.log=tk.Text(activity,wrap='word',state='disabled',height=4,bg='white',fg=self.TEXT,
+            relief='solid',bd=1,padx=self.px(10),pady=self.px(8))
+        scroll=ttk.Scrollbar(activity,command=self.log.yview)
+        self.log.configure(yscrollcommand=scroll.set)
+        scroll.pack(side='right',fill='y')
+        self.log.pack(fill='both',expand=True)
+        label('footer',9,'Muted.TLabel',(self.px(10),0))
+        main.bind('<Configure>',self.resize_text)
+
+    def resize_text(self,event):
+        width=max(self.px(200),event.width-self.px(48))
+        for widget in (self.title_label,self.instructions,self.profit_label,self.footer):
+            widget.configure(wraplength=width)
+
+    def apply_language(self):
+        selected=self.strategy_choice.current()
+        if selected < 0: selected=self.mode_index
+        self.strategy_choice.configure(values=(self.tr('legacy'),self.tr('phased')))
+        self.strategy_choice.current(selected)
+        self.root.title(f'Hololive Dreams — {self.tr("title")} v{APP_VERSION}')
+        for widget,key in ((self.title_label,'title'),(self.instructions,'instructions'),
+            (self.language_label,'language'),(self.strategy_label,'strategy'),
+            (self.start_key_label,'start_key'),(self.stop_key_label,'stop_key'),
+            (self.start_button,'start'),(self.stop_button,'stop'),(self.footer,'footer')):
+            widget.configure(text=self.tr(key))
+        self.refresh_stats()
+        self.status.configure(text=self.tr(self.state_key))
+        self.render_history()
+
+    def change_language(self,_event=None):
+        self.end_capture()
+        self.apply_language()
+        self.save_settings()
+
+    def refresh_stats(self):
+        self.coins_label.configure(text=self.tr('coins',coins=self.stats['coins']))
+        key='profit' if self.stats['profit'] is not None else 'unknown_profit'
+        self.profit_label.configure(text=self.tr(key,profit=self.stats['profit']))
+        wins=self.stats['wins'] if self.stats['complete'] else f"≥{self.stats['wins']}"
+        self.counts_label.configure(text=self.tr('counts',wins=wins,fails=self.stats['fails']))
+
+    def render_history(self):
+        self.log.configure(state='normal')
+        self.log.delete('1.0','end')
+        self.log.insert('end','\n'.join(self.tr(key,**values) for key,values in self.history))
+        self.log.see('end')
+        self.log.configure(state='disabled')
+
+    def record(self,key,**values):
+        self.history.append((key,values))
+        self.history=self.history[-100:]
+        self.render_history()
+
+    def post(self,kind,values=None,**kwargs):
+        if not self.closing or kind=='done':
+            try: self.messages.put_nowait((kind,values if values is not None else kwargs))
+            except queue.Full: pass
+
+    def configure_hotkeys(self):
+        if hasattr(self,'start_hotkey'):
+            self.generation+=1
+            enabled=not self.closing and self.capture_target is None
+            self.start_hotkey.configure(value=self.start_key,enabled=enabled and not self.running)
+            self.stop_hotkey.configure(value=self.stop_key,enabled=enabled)
+
+    def begin_capture(self,target):
+        if self.running or self.closing: return 'break'
+        self.capture_target=target
+        self.configure_hotkeys()
+        getattr(self,target+'_display').set(self.tr('capture'))
+        getattr(self,target+'_entry').focus_set()
+        return 'break'
+
+    def end_capture(self,_event=None):
+        self.capture_target=None
+        self.start_display.set(self.start_key)
+        self.stop_display.set(self.stop_key)
+        self.configure_hotkeys()
+
+    def cancel_capture(self,event):
+        if self.capture_target and event.widget not in (self.start_entry,self.stop_entry): self.end_capture()
+
+    def capture_focus_out(self,event):
+        if self.capture_target and event.widget is getattr(self,self.capture_target+'_entry'):
+            self.end_capture()
+
+    def capture_key(self,event):
+        if not self.capture_target: return
+        if event.keysym=='Escape' and not event.state&0x20005:
+            self.end_capture()
+            return 'break'
+        value=captured_hotkey(event.keysym,event.state,event.keycode)
+        if value:
+            other=self.stop_key if self.capture_target=='start' else self.start_key
+            mods,key=parse_stop_hotkey(value)
+            other_mods,other_key=parse_stop_hotkey(other)
+            if key==other_key and set(mods)==set(other_mods): self.record('duplicate')
+            else:
+                setattr(self,self.capture_target+'_key',value)
+                self.end_capture()
+                self.save_settings()
+        return 'break'
+
+    def set_controls(self):
+        self.start_button.configure(state='disabled' if self.running else 'normal')
+        self.stop_button.configure(state='normal' if self.running and not self.stopping else 'disabled')
+        for widget in (self.start_entry,self.stop_entry,self.strategy_choice):
+            widget.configure(state='disabled' if self.running else 'readonly')
+        self.configure_hotkeys()
+
+    def start(self):
+        if self.closing or self.capture_target or self.running or (self.worker and self.worker.is_alive()): return
+        self.stats=self.read_stats()
+        self.refresh_stats()
+        self.running=True
+        self.stopping=self.has_error=False
+        self.state_key='running'
+        self.status.configure(text=self.tr(self.state_key),foreground='#0067c0')
+        self.history=[]
+        self.record('running')
+        self.save_settings()
+        self.set_controls()
+        auto_bot.bot_running=True
+        mode='phased' if self.strategy_choice.current()==1 else 'legacy'
+        self.worker=threading.Thread(target=self.run,args=(mode,),name='high-low-session',daemon=True)
+        self.worker.start()
+
+    def run(self,mode):
         try:
-            keyboard.add_hotkey(self.current_hotkey, lambda: self.after(0, self.stop_bot))
-            self.btn_hotkey.configure(text=self.current_hotkey)
-            print(f"[系统] 停止快捷键已成功更换为: {self.current_hotkey}\n")
-        except Exception as e:
-            print(f"[系统] 无法绑定按键 '{new_key}'，已自动恢复默认 F11\n")
-            self.current_hotkey = "F11"
-            keyboard.add_hotkey(self.current_hotkey, lambda: self.after(0, self.stop_bot))
-            self.btn_hotkey.configure(text=self.current_hotkey)
-
-    def on_mouse_wheel(self, event):
-        direction = -1 if event.delta > 0 else 1
-        self.scroll_log('scroll', direction * 3)
-
-    def scroll_log(self, *args):
-        if not self.log_lines: return
-
-        if args[0] == 'moveto':
-            fraction = float(args[1])
-            self.log_view_start = int(fraction * len(self.log_lines))
-        elif args[0] == 'scroll':
-            self.log_view_start += int(args[1])
-
-        max_start = max(0, len(self.log_lines) - self.log_max_lines)
-        self.log_view_start = max(0, min(self.log_view_start, max_start))
-        self.update_log_view()
-
-    def update_log_view(self):
-        max_start = max(0, len(self.log_lines) - self.log_max_lines)
-        if len(self.log_lines) == 0:
-            self.scrollbar.set(0.0, 1.0)
-            visible = []
-        else:
-            fraction = self.log_view_start / max(1, len(self.log_lines))
-            fraction_end = (self.log_view_start + self.log_max_lines) / max(1, len(self.log_lines))
-            self.scrollbar.set(fraction, fraction_end)
-            visible = self.log_lines[self.log_view_start: self.log_view_start + self.log_max_lines]
-
-        self.canvas.itemconfig(self.log_text_id, text='\n'.join(visible))
-
-    def on_resize(self, event):
-        if event.widget != self.canvas: return
-        w, h = event.width, event.height
-        if w <= 10 or h <= 10: return
-
-        target_h = int(w * 16 / 9)
-        target_w = int(h * 9 / 16)
-
-        if abs(h - target_h) <= 2:
-            self.last_w, self.last_h = w, h
-            self.draw_ui(w, h)
-            return
-
-        delta_w = abs(w - self.last_w)
-        delta_h = abs(h - self.last_h)
-
-        if delta_w > delta_h / (16 / 9):
-            new_w = w
-            new_h = target_h
-        else:
-            new_w = target_w
-            new_h = h
-
-        if self.resize_after_id:
-            self.after_cancel(self.resize_after_id)
-        self.resize_after_id = self.after(20, lambda: self.geometry(f"{new_w}x{new_h}"))
-
-    def draw_ui(self, w, h):
-        if self.show_bg:
-            img = self.original_bg.resize((w, h), Image.Resampling.LANCZOS)
-        else:
-            img = Image.new('RGB', (w, h), color='#FFFFFF')
-
-        self.bg_photo = ImageTk.PhotoImage(img)
-        self.canvas.itemconfig(self.bg_id, image=self.bg_photo)
-
-        self.canvas.coords(self.title_id, w / 2, h * 0.05)
-
-        self.canvas.coords(self.lang_label_id, w * 0.08, h * 0.10)
-        self.canvas.coords(self.combo_window, w * 0.92, h * 0.10)
-        self.canvas.itemconfig(self.combo_window, width=w * 0.25)
-
-        self.canvas.coords(self.hotkey_label_id, w * 0.08, h * 0.15)
-        self.canvas.coords(self.hotkey_window, w * 0.92, h * 0.15)
-        self.canvas.itemconfig(self.hotkey_window, width=w * 0.25)
-
-        self.canvas.coords(self.status_id, w * 0.08, h * 0.21)
-        self.canvas.coords(self.coins_id, w * 0.08, h * 0.27)
-
-        btn_w = w * 0.38
-        btn_h = h * 0.045
-
-        self.canvas.coords(self.btn_next_win, w * 0.28, h * 0.34)
-        self.canvas.itemconfig(self.btn_next_win, width=btn_w, height=btn_h)
-        self.canvas.coords(self.btn_stop_win, w * 0.72, h * 0.34)
-        self.canvas.itemconfig(self.btn_stop_win, width=btn_w, height=btn_h)
-
-        self.canvas.coords(self.btn_bg_win, w * 0.28, h * 0.40)
-        self.canvas.itemconfig(self.btn_bg_win, width=btn_w, height=btn_h)
-        self.canvas.coords(self.btn_exit_win, w * 0.72, h * 0.40)
-        self.canvas.itemconfig(self.btn_exit_win, width=btn_w, height=btn_h)
-
-        log_x = w * 0.06
-        self.canvas.coords(self.strategy_window, w * .06, h * .445)
-        self.canvas.itemconfig(self.strategy_window, width=w * .88)
-        log_y = h * 0.50
-        self.canvas.coords(self.log_text_id, log_x, log_y)
-
-        # 🚀 修改 2：给日志文字设定最大物理宽度。当碰到距离右侧 15% 的边界时，强行折行！
-        self.canvas.itemconfig(self.log_text_id, width=w * 0.85)
-
-        self.canvas.coords(self.scrollbar_win, w * 0.98, log_y)
-        self.canvas.itemconfig(self.scrollbar_win, height=h * 0.45)
-
-    def toggle_bg(self):
-        self.show_bg = not self.show_bg
-        self.draw_ui(self.winfo_width(), self.winfo_height())
-
-    def update_stats_display(self, coins=None, fails=None, profit=None):
-        if coins is not None: self.current_coins = coins
-        if fails is not None: self.current_fails = fails
-        if profit is not None: self.current_profit = profit
-
-        t = TRANSLATIONS[self.current_lang]
-        base_text = t["coins_prefix"].replace("{coins}", str(self.current_coins))
-        display_str = f"{base_text}\n净利: {self.current_profit:+d} | 失败: {self.current_fails}"
-        self.canvas.itemconfig(self.coins_id, text=display_str)
-
-    def refresh_texts(self):
-        t = TRANSLATIONS[self.current_lang]
-        selected_strategy = self.combo_strategy.current()
-        self.combo_strategy.configure(values=STRATEGY_LABELS[self.current_lang],
-                                      state='disabled' if self.is_running else 'readonly')
-        self.combo_strategy.current(max(0, selected_strategy))
-        self.title(t["title"])
-        self.canvas.itemconfig(self.title_id, text=t["title"])
-        self.canvas.itemconfig(self.lang_label_id, text=t["lang_label"])
-        self.canvas.itemconfig(self.hotkey_label_id, text=t["hotkey_label"])
-
-        self.btn_bg.configure(text=t["btn_bg"])
-        self.btn_exit.configure(text=t["btn_exit"])
-
-        self.update_stats_display()
-
-        if not self.is_running:
-            self.canvas.itemconfig(self.status_id, text=t["status_idle"], fill="#111111")
-            self.btn_next.configure(text=t["btn_start"], state="normal")
-            self.btn_stop.configure(text=t["btn_stop"], state="disabled")
-            self.btn_hotkey.configure(state="normal")
-        else:
-            self.btn_next.configure(text=t["btn_running"], state="disabled")
-            self.btn_stop.configure(text=t["btn_stop"], state="normal")
-            self.btn_hotkey.configure(state="disabled")
-
-    def change_language(self, event=None):
-        idx = self.combo_lang.current()
-        self.current_lang = self.lang_keys[idx]
-        self.refresh_texts()
-
-    def start_bot(self):
-        self.active_mode = 'phased' if self.combo_strategy.current() == 1 else 'legacy'
-        self.is_running = True
-        self.refresh_texts()
-        self.canvas.itemconfig(self.status_id,
-                               text="状态：运行中..." if self.current_lang in ["zh", "tw"] else "Status: Running...",
-                               fill="green")
-
-        self.sys_redirector.clear()
-
-        auto_bot.bot_running = True
-        self.bot_thread = threading.Thread(target=self.run_bot, daemon=True)
-        self.bot_thread.start()
-
-    def stop_bot(self):
-        if not self.is_running: return
-
-        print(f"\n[系统] 收到停止指令 (或按下了快捷键)，正在等待当前动作完成并安全退出...")
-        auto_bot.bot_running = False
-        self.btn_stop.configure(state="disabled")
-        self.canvas.itemconfig(self.status_id,
-                               text="状态：正在停止..." if self.current_lang in ["zh", "tw"] else "Status: Stopping...",
-                               fill="orange")
-
-    def run_bot(self):
-        try:
-            auto_bot.auto_play_loop(self.active_mode)
-        except Exception as e:
-            print(f"崩溃异常: {e}")
-            self.canvas.itemconfig(self.status_id, text="状态：崩溃异常", fill="red")
+            with contextlib.redirect_stdout(NullOutput()): self.runner(mode,notify=self.post)
+        except Exception as exc: self.post('error',detail=str(exc))
         finally:
-            self.is_running = False
-            auto_bot.bot_running = False
-            self.refresh_texts()
-            print("\n[系统] 挂机已完全停止。")
+            auto_bot.bot_running=False
+            self.post('done')
 
-    def destroy(self):
-        sys.stdout = self.original_stdout
-        keyboard.unhook_all()
-        super().destroy()
+    def stop(self):
+        if self.running:
+            auto_bot.bot_running=False
+            self.stopping=True
+            self.state_key='stopping'
+            self.status.configure(text=self.tr(self.state_key),foreground=self.MUTED)
+            self.set_controls()
 
+    def poll(self):
+        try:
+            while True:
+                kind,values=self.messages.get_nowait()
+                if kind in ('start_hotkey','stop_hotkey'):
+                    if values['generation']==self.generation and not self.capture_target:
+                        (self.start if kind=='start_hotkey' else self.stop)()
+                elif kind=='hotkey_status':
+                    if not values['ok']: self.record('hotkey_error',key=values['key'])
+                elif kind=='stats':
+                    self.stats=values
+                    self.refresh_stats()
+                elif kind=='state' and not self.stopping:
+                    self.state_key=values['state']
+                    self.status.configure(text=self.tr(self.state_key))
+                elif kind=='credit': self.record('credit',amount=values['amount'])
+                elif kind=='failed': self.record('failed')
+                elif kind=='error':
+                    self.has_error=True
+                    self.state_key='error'
+                    self.status.configure(text=self.tr('error'),foreground='#b42318')
+                    key,params=error_message(values['detail'])
+                    self.record(key,**params)
+                elif kind=='done':
+                    self.running=self.stopping=False
+                    if not self.has_error:
+                        self.state_key='stopped'
+                        self.status.configure(text=self.tr('stopped'),foreground=self.MUTED)
+                        self.record('stopped')
+                    self.set_controls()
+        except queue.Empty: pass
+        if not self.closing: self.root.after(50,self.poll)
 
-if __name__ == "__main__":
-    app = HololiveBotUI()
-    app.mainloop()
+    def close(self):
+        if self.closing: return
+        self.closing=True
+        self.save_settings()
+        self.stop()
+        self.start_hotkey.close()
+        self.stop_hotkey.close()
+        self.root.after(50,self.finish_close)
+
+    def finish_close(self):
+        if self.worker and self.worker.is_alive(): self.root.after(50,self.finish_close)
+        else: self.root.destroy()
+
+def main():
+    root=tk.Tk()
+    HololiveBotUI(root)
+    root.mainloop()
+
+if __name__=='__main__': main()
