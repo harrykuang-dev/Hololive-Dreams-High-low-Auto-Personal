@@ -8,7 +8,7 @@
 - Localized language labels, a strategy guide centered on the program window, and sharper application icons.
 - Single executable with bundled templates, OCR models and required resources.
 
-Download **HololiveDreamsHighLowAuto.exe**. Before upgrading, stop the program and keep `daily_coins.json` and `settings.json` beside the new EXE.
+Download **HololiveDreamsHighLowAuto.exe**. Records and preferences are stored in `%LOCALAPPDATA%\HololiveDreamsHighLowAuto\`. Before upgrading, stop the program and replace the EXE. On first launch, existing `daily_coins.json` and `settings.json` files beside the EXE are moved to this folder; existing AppData files are not overwritten.
 
 ## 繁體中文
 
@@ -18,4 +18,4 @@ Download **HololiveDreamsHighLowAuto.exe**. Before upgrading, stop the program a
 - 語言標籤採對應譯詞，策略說明彈窗在程式視窗中央開啟，程式圖示更清晰。
 - 單一執行檔包含模板、OCR 模型及必要資源。
 
-下載 **HololiveDreamsHighLowAuto.exe**。升級前停止程式，保留 `daily_coins.json` 與 `settings.json`，放在新 EXE 同級目錄。
+下載 **HololiveDreamsHighLowAuto.exe**。記錄與設定存放於 `%LOCALAPPDATA%\HololiveDreamsHighLowAuto\`。升級前停止程式並替換 EXE；首次啟動會搬移 EXE 旁的 `daily_coins.json` 與 `settings.json`，不覆寫 AppData 中已有的檔案。

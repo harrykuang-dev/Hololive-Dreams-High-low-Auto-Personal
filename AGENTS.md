@@ -3,6 +3,7 @@
 - Publish only to `harrykuang-dev/Hololive-Dreams-High-low-Auto-Personal`.
 - Preserve Conservative and Aggressive game rules. Profit display changes must not affect rewards or decisions.
 - Preserve `daily_coins.json` on upgrades. Never estimate historical rewards or round counts; missing win counts mean unavailable net profit.
+- Store records and preferences in LocalAppData/HololiveDreamsHighLowAuto. Migrate legacy files without overwriting existing data.
 - Reset records and strategy progress at local 04:00 or after manual confirmation.
 - Persist only records and preferences; no runtime logs, screenshots or OCR dumps.
 - Build in a fresh staging folder, outside active installations.

@@ -18,7 +18,7 @@ Click a shortcut field and press a key or a Ctrl / Alt / Shift combination to ch
 
 Coins today shows confirmed rewards. Net profit is **confirmed rewards − 50 × (winning rounds + losing rounds)**.
 
-`daily_coins.json` stores the daily rewards, round counts and Aggressive strategy progress. `settings.json` stores the language, strategy and shortcuts. Stop the program before upgrading and keep both files beside the new EXE.
+`daily_coins.json` stores the daily rewards, round counts and Aggressive strategy progress. `settings.json` stores the language, strategy and shortcuts. Both files are stored in `%LOCALAPPDATA%\HololiveDreamsHighLowAuto\`. Before upgrading, stop the program and replace the EXE. On first launch, existing records and preferences beside the EXE are moved to this folder; existing AppData files are not overwritten.
 
 Daily records and Aggressive strategy progress reset at **04:00 on the computer’s local clock**. The **Reset daily records** button resets rewards, net profit, round counts and Aggressive strategy progress after confirmation. Use manual reset when the server and computer use different time zones.
 

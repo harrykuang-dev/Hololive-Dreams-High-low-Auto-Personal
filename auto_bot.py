@@ -21,6 +21,7 @@ from challenge_reward import ChallengeRewardReader
 from phased_strategy import PhasedStrategy
 from daily_accounting import (load_wins, read_record, write_record, empty_record,
                               record_day, net_profit as calculate_net_profit)
+from user_storage import USER_DATA_DIR, prepare_user_data
 
 try:
     # Windows source-mode runs otherwise inherit a legacy console encoding and
@@ -44,7 +45,7 @@ TARGET_LIMIT = 19800
 APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", APP_DIR)).resolve()
 TEMPLATE_DIR = RESOURCE_DIR / "templates"
-DATA_FILE = APP_DIR / "daily_coins.json"
+DATA_FILE = USER_DATA_DIR / "daily_coins.json"
 
 # Icon templates and hard-coded recognition zones were captured at 1920x1080.
 # Every game frame is normalized to this size before matching/recognition, and
@@ -874,4 +875,5 @@ def auto_play_loop(mode='legacy', notify=None):
 
 
 if __name__ == "__main__":
+    prepare_user_data(APP_DIR)
     auto_play_loop()

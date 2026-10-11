@@ -18,7 +18,7 @@ Klik kolom pintasan, lalu tekan tombol atau kombinasi Ctrl / Alt / Shift untuk m
 
 Koin hari ini menunjukkan total hadiah terkonfirmasi. Laba bersih adalah **hadiah terkonfirmasi − 50 × (ronde menang + ronde kalah)**.
 
-`daily_coins.json` menyimpan hadiah harian, jumlah ronde dan kemajuan strategi Agresif. `settings.json` menyimpan bahasa, strategi dan pintasan. Hentikan program sebelum memperbarui, lalu simpan kedua berkas di folder yang sama dengan EXE baru.
+`daily_coins.json` menyimpan hadiah harian, jumlah ronde dan kemajuan strategi Agresif. `settings.json` menyimpan bahasa, strategi dan pintasan. Kedua berkas disimpan di `%LOCALAPPDATA%\HololiveDreamsHighLowAuto\`. Hentikan program sebelum memperbarui dan ganti EXE. Saat pertama dijalankan, catatan dan pengaturan yang ada di sebelah EXE dipindahkan ke folder ini; berkas yang sudah ada di AppData tidak ditimpa.
 
 Catatan harian dan kemajuan strategi Agresif direset pada **pukul 04.00 menurut waktu lokal komputer**. Tombol **Reset catatan harian** mereset hadiah, laba bersih, jumlah ronde dan kemajuan strategi Agresif setelah konfirmasi. Gunakan reset manual jika server dan komputer berada di zona waktu berbeda.
 
