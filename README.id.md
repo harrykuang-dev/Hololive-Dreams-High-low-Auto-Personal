@@ -2,7 +2,7 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Indonesian](README.id.md) · [简体中文](README.zh-CN.md)
 
-Program Windows untuk memainkan High & Low secara otomatis dengan strategi Konservatif (asli) dan Agresif (tiga tahap). Antarmuka mendukung bahasa Inggris, Tionghoa Tradisional, Jepang, Korea, Indonesia dan Tionghoa Sederhana.
+Program Windows untuk memainkan High & Low secara otomatis dengan strategi Konservatif dan Agresif. Antarmuka mendukung bahasa Inggris, Tionghoa Tradisional, Jepang, Korea, Indonesia dan Tionghoa Sederhana.
 
 ## Unduh dan jalankan
 
@@ -18,11 +18,9 @@ Klik kolom pintasan, lalu tekan tombol atau kombinasi Ctrl / Alt / Shift untuk m
 
 Koin hari ini menunjukkan total hadiah terkonfirmasi. Laba bersih adalah **hadiah terkonfirmasi − 50 × (ronde menang + ronde kalah)**.
 
-`daily_coins.json` menyimpan hadiah harian, jumlah ronde dan kemajuan tiga tahap. `settings.json` menyimpan bahasa, strategi dan pintasan. Hentikan program sebelum memperbarui, lalu simpan kedua berkas di folder yang sama dengan EXE baru.
+`daily_coins.json` menyimpan hadiah harian, jumlah ronde dan kemajuan strategi Agresif. `settings.json` menyimpan bahasa, strategi dan pintasan. Hentikan program sebelum memperbarui, lalu simpan kedua berkas di folder yang sama dengan EXE baru.
 
-Catatan harian dan kemajuan tiga tahap direset pada **pukul 04.00 menurut waktu lokal komputer**. Tombol **Reset catatan harian** mereset hadiah, laba bersih, jumlah ronde dan kemajuan tiga tahap setelah konfirmasi. Gunakan reset manual jika server dan komputer berada di zona waktu berbeda.
-
-Catatan lama pada hari yang sama tanpa jumlah kemenangan tetap mempertahankan hadiah, tetapi laba bersih ditampilkan sebagai tidak tersedia. Biaya masuk sebelumnya tidak diperkirakan; pencatatan lengkap dilanjutkan setelah reset harian berikutnya. Log dan tangkapan layar tidak disimpan.
+Catatan harian dan kemajuan strategi Agresif direset pada **pukul 04.00 menurut waktu lokal komputer**. Tombol **Reset catatan harian** mereset hadiah, laba bersih, jumlah ronde dan kemajuan strategi Agresif setelah konfirmasi. Gunakan reset manual jika server dan komputer berada di zona waktu berbeda.
 
 ## Jalankan dari sumber dan buat paket
 
@@ -36,6 +34,6 @@ Hasil: `dist/HololiveDreamsHighLowAuto.exe`.
 
 ## Dokumentasi dan lisensi
 
-[Strategi tiga tahap](THREE_STAGE.md#id) · [Istilah game](docs/GAME_TERMS.md) · [OCR hadiah](docs/OCR.md) · [Catatan rilis v1.1.1](docs/RELEASE-1.1.1.md) · [Riwayat versi](HISTORY.md)
+[Strategi Agresif](THREE_STAGE.md#id) · [Istilah game](docs/GAME_TERMS.md) · [OCR hadiah](docs/OCR.md) · [Catatan rilis v1.1.1](docs/RELEASE-1.1.1.md) · [Riwayat versi](HISTORY.md)
 
 Pengenalan kartu dan strategi pemilihan kartu yang dipertahankan didasarkan pada [hololive-dreams-helper](https://github.com/Oreki0504/hololive-dreams-helper). [Pemberitahuan MIT](licenses/poker-core-MIT.txt) dan pemberitahuan lisensi lain yang diperlukan disertakan dalam [licenses](licenses/).

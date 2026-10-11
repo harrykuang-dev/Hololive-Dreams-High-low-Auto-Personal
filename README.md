@@ -2,7 +2,7 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Indonesian](README.id.md) · [简体中文](README.zh-CN.md)
 
-A Windows program that automates High & Low with Conservative (original) and Aggressive (three-stage) strategies. The interface supports English, Traditional Chinese, Japanese, Korean, Indonesian and Simplified Chinese.
+A Windows program that automates High & Low with Conservative and Aggressive strategies. The interface supports English, Traditional Chinese, Japanese, Korean, Indonesian and Simplified Chinese.
 
 ## Download and run
 
@@ -18,11 +18,9 @@ Click a shortcut field and press a key or a Ctrl / Alt / Shift combination to ch
 
 Coins today shows confirmed rewards. Net profit is **confirmed rewards − 50 × (winning rounds + losing rounds)**.
 
-`daily_coins.json` stores the daily rewards, round counts and three-stage progress. `settings.json` stores the language, strategy and shortcuts. Stop the program before upgrading and keep both files beside the new EXE.
+`daily_coins.json` stores the daily rewards, round counts and Aggressive strategy progress. `settings.json` stores the language, strategy and shortcuts. Stop the program before upgrading and keep both files beside the new EXE.
 
-Daily records and three-stage progress reset at **04:00 on the computer’s local clock**. The **Reset daily records** button resets rewards, net profit, round counts and three-stage progress after confirmation. Use manual reset when the server and computer use different time zones.
-
-Old same-day records without win counts retain their existing rewards but show unavailable net profit. Historical entry costs are not estimated; complete accounting resumes at the next daily reset. Logs and screenshots are not saved.
+Daily records and Aggressive strategy progress reset at **04:00 on the computer’s local clock**. The **Reset daily records** button resets rewards, net profit, round counts and Aggressive strategy progress after confirmation. Use manual reset when the server and computer use different time zones.
 
 ## Run from source and build
 
@@ -36,6 +34,6 @@ Output: `dist/HololiveDreamsHighLowAuto.exe`.
 
 ## Documentation and licenses
 
-[Three-stage strategy](THREE_STAGE.md) · [Game terminology](docs/GAME_TERMS.md) · [Reward OCR](docs/OCR.md) · [v1.1.1 release notes](docs/RELEASE-1.1.1.md) · [Version history](HISTORY.md)
+[Aggressive strategy](THREE_STAGE.md) · [Game terminology](docs/GAME_TERMS.md) · [Reward OCR](docs/OCR.md) · [v1.1.1 release notes](docs/RELEASE-1.1.1.md) · [Version history](HISTORY.md)
 
 Card recognition and hold-card strategy are based on [hololive-dreams-helper](https://github.com/Oreki0504/hololive-dreams-helper). Its [MIT notice](licenses/poker-core-MIT.txt) and other required license notices are retained in [licenses](licenses/).

@@ -18,10 +18,9 @@ Windows 自動比大小程式，提供「穩健」與「激進」策略。介面
 
 今日硬幣顯示已確認的入帳總額。淨利為 **確認入帳 − 50 ×（勝局 + 敗局）**。
 
-`daily_coins.json` 保存當日入帳、局數及三階段進度；`settings.json` 保存語言、策略及快捷鍵。升級前停止程式，保留這兩個檔案並放在新 EXE 同級目錄。
+`daily_coins.json` 保存當日入帳、局數及激進策略進度；`settings.json` 保存語言、策略及快捷鍵。升級前停止程式，保留這兩個檔案並放在新 EXE 同級目錄。
 
-當日記錄與三階段進度依**電腦本地時間凌晨 4 點**歸零。「**重設當日記錄**」按鈕經確認後，會將入帳、淨利、局數及三階段進度歸零。伺服器與電腦時區不同時，可使用手動重設。
-
+當日記錄與激進策略進度依**電腦本地時間凌晨 4 點**歸零。「**重設當日記錄**」按鈕經確認後，會將入帳、淨利、局數及激進策略進度歸零。伺服器與電腦時區不同時，可使用手動重設。
 
 ## 從原始碼執行與打包
 
@@ -35,6 +34,6 @@ python -m PyInstaller --noconfirm "Hololive Dreams-Auto.spec"
 
 ## 文件與授權
 
-[三階段策略](THREE_STAGE.md#zh-tw) · [遊戲用詞](docs/GAME_TERMS.md) · [獎金 OCR](docs/OCR.md) · [v1.1.1 更新說明](docs/RELEASE-1.1.1.md#繁體中文) · [版本歷史](HISTORY.md)
+[激進策略](THREE_STAGE.md#zh-tw) · [遊戲用詞](docs/GAME_TERMS.md) · [獎金 OCR](docs/OCR.md) · [v1.1.1 更新說明](docs/RELEASE-1.1.1.md#繁體中文) · [版本歷史](HISTORY.md)
 
 識牌與留牌策略來自 [hololive-dreams-helper](https://github.com/Oreki0504/hololive-dreams-helper)。其 [MIT 聲明](licenses/poker-core-MIT.txt)與其他必要授權聲明保留於 [licenses](licenses/)。
