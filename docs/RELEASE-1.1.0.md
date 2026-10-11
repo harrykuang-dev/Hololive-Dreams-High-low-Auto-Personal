@@ -1,14 +1,21 @@
-# Personal v1.1.0
+# v1.1.0 — Multilingual Interface, Custom Shortcuts and Net Profit Fix
 
-- 前端參照跳繩工具改為原生 Windows 表單，保留原版與三階段策略，移除背景切換及逐幀診斷資訊。
-- 六種語言切換介面、狀態與統計；遊戲名稱及貨幣依解包文字表核對。
-- 開始與停止快捷鍵均可自訂，預設 F8 開始、INSERT 停止。支援 Ctrl / Alt / Shift 組合；Num Lock 不會被判成 Alt；錄製快捷鍵期間不啟動掛機，兩個快捷鍵不得相同。
-- 淨利改為「確認入帳 − 50 ×（勝局 + 敗局）」，修正每個勝局多算 50 的問題。入帳金額和策略決策仍使用原有的總獎金。
-- 新增勝局次數，重啟後保留。舊版當日紀錄若缺少勝局次數，保留硬幣／代幣、敗局和策略進度，當日淨利標為無法確認，不估算過去投入。下一個遊戲記錄日恢復完整統計。
-- 單文件 EXE 內含模板、OCR 模型、圖示及授權資料，不需 `_internal` 資料夾。首次啟動會解壓執行資源到 Windows 臨時目錄；關閉後由封裝器清理。
-- 不保存日誌或截圖；EXE 同級保留 `daily_coins.json` 入帳檔與 `settings.json` 偏好設定。
+## English
 
-升級前停止掛機並保留既有 `daily_coins.json`，將它放在新 EXE 同級。
-本版本僅在 Personal 倉庫發佈，不向 fork 或作者倉庫推送。
+- Native Windows interface in six languages, with the original and three-stage strategies.
+- Custom start and stop shortcuts with Ctrl / Alt / Shift support. Defaults: F8 to start, INSERT to stop. Shortcut capture handles Alt and Num Lock separately.
+- Net profit deducts the 50 Coins entry cost for both winning and losing rounds. Confirmed reward totals and strategy decisions retain their existing rules.
+- Existing daily records are preserved. Records without win counts show unavailable net profit; complete accounting resumes on the next date.
+- Single executable with bundled templates, OCR models and required resources. No logs or screenshots are saved.
 
-驗證包含真實 OCR 截圖回歸、結算去重與勝局扣費、舊帳與跨日相容、快捷鍵捕獲、六語言 Tk 介面及單文件資源檢查。完整遊戲日循環未在此版本重跑。
+Download **HololiveDreamsHighLowAuto.exe**. Before upgrading, stop the program and keep `daily_coins.json` and `settings.json` beside the new EXE.
+
+## 繁體中文
+
+- 原生 Windows 介面支援六種語言，提供原版與三階段策略。
+- 開始與停止快捷鍵可自訂，支援 Ctrl / Alt / Shift。預設 F8 開始、INSERT 停止；快捷鍵錄製分別處理 Alt 與 Num Lock。
+- 淨利扣除每個勝局與敗局的 50 硬幣投入；確認入帳總額與策略決策維持原有規則。
+- 保留既有當日記錄。缺少勝局次數的記錄顯示淨利無法確認；下一日期恢復完整統計。
+- 單一執行檔包含模板、OCR 模型及必要資源，不保存日誌或截圖。
+
+下載 **HololiveDreamsHighLowAuto.exe**。升級前停止程式，保留 `daily_coins.json` 與 `settings.json`，放在新 EXE 同級目錄。
