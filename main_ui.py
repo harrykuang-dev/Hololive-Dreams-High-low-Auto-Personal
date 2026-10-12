@@ -140,7 +140,7 @@ class HololiveBotUI:
         self.title_label.grid(row=0,column=1,sticky='ew')
         self.instructions=ttk.Label(main,style='Muted.TLabel',justify='left')
         self.instructions.grid(row=1,column=0,sticky='ew',pady=(self.px(8),self.px(12)))
-        self.status=ttk.Label(main,style='Muted.TLabel')
+        self.status=ttk.Label(main,style='Muted.TLabel',foreground=ACCENT)
         self.status.grid(row=2,column=0,sticky='w',pady=(0,self.px(12)))
         self.summary=ttk.Frame(main,style='Card.TFrame',padding=self.px(16))
         self.summary.grid(row=3,column=0,sticky='ew',pady=(0,self.px(12)))
@@ -484,7 +484,7 @@ class HololiveBotUI:
             auto_bot.bot_running=False
             self.stopping=True
             self.state_key='stopping'
-            self.status.configure(text=self.tr(self.state_key),foreground=self.MUTED)
+            self.status.configure(text=self.tr(self.state_key),foreground=ACCENT)
             self.set_controls()
 
     def reset_daily_stats(self):
@@ -550,7 +550,7 @@ class HololiveBotUI:
                     self.running=self.stopping=False
                     if not self.has_error:
                         self.state_key='stopped'
-                        self.status.configure(text=self.tr('stopped'),foreground=self.MUTED)
+                        self.status.configure(text=self.tr('stopped'),foreground=ACCENT)
                         self.record('stopped')
                     self.set_controls()
         except queue.Empty: pass
