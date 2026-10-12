@@ -221,8 +221,13 @@ class HololiveBotUI:
         self.log.configure(yscrollcommand=scroll.set)
         scroll.pack(side='right',fill='y',padx=(self.px(8),0))
         self.log.pack(fill='both',expand=True)
-        self.reset_button=ttk.Button(main,text=self.tr('reset'),style='Subtle.TButton',command=self.reset_daily_stats)
-        self.reset_button.grid(row=7,column=0,sticky='e',pady=(self.px(8),0))
+        footer=ttk.Frame(main)
+        footer.grid(row=7,column=0,sticky='ew',pady=(self.px(8),0))
+        footer.columnconfigure(0,weight=1)
+        self.version_label=ttk.Label(footer,text=f'v{APP_VERSION}',style='Muted.TLabel')
+        self.version_label.grid(row=0,column=0,sticky='w')
+        self.reset_button=ttk.Button(footer,text=self.tr('reset'),style='Subtle.TButton',command=self.reset_daily_stats)
+        self.reset_button.grid(row=0,column=1,sticky='e')
         main.bind('<Configure>',self.schedule_resize)
         self.resize_text(type('Size',(),dict(width=self.px(450),height=self.px(800)))())
 
@@ -346,7 +351,7 @@ class HololiveBotUI:
     def apply_language(self):
         for button,key in zip(self.strategy_buttons,('legacy','phased')):
             button.configure(text=self.tr(key))
-        self.root.title(f'Hololive Dreams — {self.tr("title")} v{APP_VERSION}')
+        self.root.title(f'Hololive Dreams — {self.tr("title")}')
         for widget,key in ((self.title_label,'title'),(self.instructions,'instructions'),
             (self.language_label,'language'),(self.strategy_label,'strategy'),
             (self.start_key_label,'start_key'),(self.stop_key_label,'stop_key'),
