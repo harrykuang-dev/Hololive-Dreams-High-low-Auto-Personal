@@ -10,7 +10,9 @@ import contextlib
 import json
 import queue
 import threading
+import webbrowser
 import tkinter as tk
+from ctypes import wintypes
 from tkinter import font, ttk, messagebox
 from PIL import Image, ImageTk
 from fluent_theme import FluentTheme, Tooltip, BG, TEXT, MUTED, ACCENT
@@ -22,6 +24,54 @@ from user_storage import USER_DATA_DIR, prepare_user_data
 import auto_bot
 
 SETTINGS_FILE = USER_DATA_DIR / 'settings.json'
+REPOSITORY_URL = 'https://github.com/harrykuang-dev/Hololive-Dreams-High-low-Auto-Personal'
+
+
+def window_dpi(root):
+    try:
+        get_dpi = ctypes.windll.user32.GetDpiForWindow
+        get_dpi.argtypes = [wintypes.HWND]
+        get_dpi.restype = wintypes.UINT
+        return get_dpi(root.winfo_id()) or 96
+    except (AttributeError, OSError):
+        return round(root.winfo_fpixels('1i'))
+
+
+def window_work_area(root, dpi):
+    """Return the current monitor's work area and native window-frame size."""
+    try:
+        user32 = ctypes.windll.user32
+        user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+        user32.GetAncestor.restype = wintypes.HWND
+        hwnd = user32.GetAncestor(root.winfo_id(), 2) or root.winfo_id()
+        user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+        user32.MonitorFromWindow.restype = wintypes.HANDLE
+
+        class MonitorInfo(ctypes.Structure):
+            _fields_ = [('size', wintypes.DWORD), ('monitor', wintypes.RECT),
+                        ('work', wintypes.RECT), ('flags', wintypes.DWORD)]
+
+        info = MonitorInfo()
+        info.size = ctypes.sizeof(info)
+        user32.GetMonitorInfoW.argtypes = [wintypes.HANDLE, ctypes.POINTER(MonitorInfo)]
+        if not user32.GetMonitorInfoW(user32.MonitorFromWindow(hwnd, 2), ctypes.byref(info)):
+            raise OSError('Cannot read monitor work area')
+        user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+        frame = wintypes.RECT()
+        # Tk creates the decorated wrapper lazily while the root is withdrawn.
+        # Its initial native style can therefore omit the caption/frame bits.
+        style = user32.GetWindowLongW(hwnd, -16) | 0x00CF0000
+        user32.AdjustWindowRectExForDpi.argtypes = [ctypes.POINTER(wintypes.RECT),
+            wintypes.DWORD, wintypes.BOOL, wintypes.DWORD, wintypes.UINT]
+        if not user32.AdjustWindowRectExForDpi(ctypes.byref(frame),
+                style, False,
+                user32.GetWindowLongW(hwnd, -20), dpi):
+            raise OSError('Cannot read native frame size')
+        return ((info.work.left, info.work.top, info.work.right, info.work.bottom),
+                frame.right-frame.left, frame.bottom-frame.top)
+    except (AttributeError, OSError):
+        return ((0, 0, root.winfo_screenwidth(), root.winfo_screenheight()),
+                round(16*dpi/96), round(64*dpi/96))
 
 class NullOutput:
     def write(self, _message): pass
@@ -48,19 +98,23 @@ class HololiveBotUI:
         self.start_key, self.stop_key = settings['start_key'], settings['stop_key']
         self.start_display = tk.StringVar(root, self.start_key)
         self.stop_display = tk.StringVar(root, self.stop_key)
-        try:
-            self.scale = (ctypes.windll.user32.GetDpiForWindow(root.winfo_id()) or 96)/96
-        except (AttributeError, OSError):
-            self.scale = root.winfo_fpixels('1i')/96
-        # Keep the full form visible on smaller screens and high-DPI displays.
-        self.scale = min(self.scale,(root.winfo_screenwidth()-60)/450,
-                         (root.winfo_screenheight()-100)/800)
+        dpi = window_dpi(root)
+        self.scale = dpi/96
         root.tk.call('tk', 'scaling', self.scale*96/72)
         for name in ('TkDefaultFont', 'TkTextFont', 'TkMenuFont', 'TkHeadingFont'):
             font.nametofont(name).configure(family='Segoe UI', size=10)
         root.configure(bg=self.BG)
-        root.geometry(f'{self.px(450)}x{self.px(800)}')
-        root.minsize(self.px(360), self.px(640))
+        (left, top, right, bottom), frame_width, frame_height = window_work_area(root, dpi)
+        available_width = max(1, right-left-frame_width)
+        available_height = max(1, bottom-top-frame_height)
+        width = min(round(517*dpi/120), available_width)
+        height = min(round(1055*dpi/120), available_height)
+        x = left+max(0, (right-left-width-frame_width)//2)
+        y = top+max(0, (bottom-top-height-frame_height)//2)
+        root.geometry(f'{width}x{height}{x:+d}{y:+d}')
+        root.minsize(min(self.px(360), available_width),
+                     min(self.px(320), available_height))
+        root.resizable(True, True)
         root.protocol('WM_DELETE_WINDOW', self.close)
         try:
             png_icon = auto_bot.RESOURCE_DIR/'icon_transparent.png'
@@ -123,8 +177,13 @@ class HololiveBotUI:
         self._resize_job=None
         self._wrap_width=None
         self._strategies_stacked=False
-        self.main=main=ttk.Frame(self.root,padding=self.px(24))
-        main.pack(fill='both',expand=True)
+        self.viewport=tk.Canvas(self.root,bg=self.BG,highlightthickness=0,borderwidth=0)
+        self.page_scroll=ttk.Scrollbar(self.root,command=self.viewport.yview)
+        self.viewport.configure(yscrollcommand=self.page_scroll.set)
+        self.viewport.pack(fill='both',expand=True)
+        self.main=main=ttk.Frame(self.viewport,padding=self.px(24))
+        self._main_window=self.viewport.create_window(0,0,window=main,anchor='nw')
+        self._wheel_delta=0
         main.columnconfigure(0,weight=1)
         main.rowconfigure(6,weight=1)
         heading=ttk.Frame(main)
@@ -224,22 +283,75 @@ class HololiveBotUI:
         footer=ttk.Frame(main)
         footer.grid(row=7,column=0,sticky='ew',pady=(self.px(8),0))
         footer.columnconfigure(0,weight=1)
-        self.version_label=ttk.Label(footer,text=f'v{APP_VERSION}',style='Muted.TLabel')
+        self.version_label=ttk.Label(footer,text=f'v{APP_VERSION}',style='Muted.TLabel',
+                                   cursor='hand2',takefocus=True)
         self.version_label.grid(row=0,column=0,sticky='w')
+        for sequence in ('<Button-1>','<Return>','<space>'):
+            self.version_label.bind(sequence,self.open_repository)
         self.reset_button=ttk.Button(footer,text=self.tr('reset'),style='Subtle.TButton',command=self.reset_daily_stats)
         self.reset_button.grid(row=0,column=1,sticky='e')
         main.bind('<Configure>',self.schedule_resize)
-        self.resize_text(type('Size',(),dict(width=self.px(450),height=self.px(800)))())
+        self.viewport.bind('<Configure>',self.schedule_resize)
+        self.root.bind('<MouseWheel>',self.scroll_page,add='+')
+        self.root.bind('<FocusIn>',self.reveal_focus,add='+')
+        self.schedule_resize()
 
-    def schedule_resize(self,_event):
+    def open_repository(self,_event=None):
+        webbrowser.open(REPOSITORY_URL)
+        return 'break'
+
+    def scroll_page(self,event):
+        # Keep the activity log and native selectors' own wheel behavior.
+        if event.widget is self.log or isinstance(event.widget,ttk.Combobox): return
+        if self.viewport.yview()==(0.0,1.0): return
+        self._wheel_delta += event.delta
+        steps=int(self._wheel_delta/120)
+        self._wheel_delta -= steps*120
+        if steps: self.viewport.yview_scroll(-steps*3,'units')
+        return 'break'
+
+    def reveal_focus(self,event):
+        widget=event.widget
+        # Focus in help dialogs must not move the underlying form.
+        if widget.winfo_toplevel() is not self.root: return
+        if widget is self.viewport or widget is self.root: return
+        self.root.after_idle(lambda:self.scroll_to_widget(widget))
+
+    def scroll_to_widget(self,widget):
+        if self.closing or not widget.winfo_exists(): return
+        parent=widget
+        while parent is not self.main:
+            parent=parent.master
+            if parent is None: return
+        top=widget.winfo_rooty()-self.main.winfo_rooty()
+        bottom=top+widget.winfo_height()
+        visible_top=self.viewport.canvasy(0)
+        visible_bottom=visible_top+self.viewport.winfo_height()
+        height=max(1,self.main.winfo_height())
+        if top < visible_top:
+            self.viewport.yview_moveto(max(0,top-self.px(8))/height)
+        elif bottom > visible_bottom:
+            self.viewport.yview_moveto((bottom+self.px(8)-self.viewport.winfo_height())/height)
+
+    def schedule_resize(self,_event=None):
         if self._resize_job is None:
             self._resize_job=self.root.after_idle(self.apply_resize)
 
     def apply_resize(self):
         self._resize_job=None
         if not self.closing:
-            self.resize_text(type('Size',(),dict(width=self.main.winfo_width(),
-                                               height=self.main.winfo_height()))())
+            width=max(1,self.viewport.winfo_width())
+            height=max(1,self.viewport.winfo_height())
+            self.resize_text(type('Size',(),dict(width=width,height=height))())
+            content_height=max(height,self.main.winfo_reqheight())
+            self.viewport.itemconfigure(self._main_window,width=width,height=content_height)
+            self.viewport.configure(scrollregion=(0,0,width,content_height))
+            if content_height > height:
+                if not self.page_scroll.winfo_manager():
+                    self.page_scroll.pack(side='right',fill='y',before=self.viewport)
+            else:
+                self.page_scroll.pack_forget()
+                self.viewport.yview_moveto(0)
 
     def resize_text(self,event):
         compact=event.height < self.px(720)
