@@ -407,15 +407,19 @@ def find_and_click_icon(screen_bgr, tpl_path, win_left, win_top, threshold=0.80)
 
 def is_success_prompt(screen_bgr):
     gray = cv2.cvtColor(screen_bgr, cv2.COLOR_BGR2GRAY)
+    scores = {'chance': -1.0, 'success': -1.0}
     for path in ICON_TEMPLATES['ASK_CHALLENGE']:
-        if 'success_' not in os.path.basename(path):
+        kind = os.path.basename(path).split('_', 1)[0]
+        if kind not in scores:
             continue
         template = cv2.imdecode(np.frombuffer(Path(path).read_bytes(), dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
         if template is not None and template.shape[0] <= gray.shape[0] and template.shape[1] <= gray.shape[1]:
             score = cv2.minMaxLoc(cv2.matchTemplate(gray, template, cv2.TM_CCOEFF_NORMED))[1]
-            if score >= .85:
-                return True
-    return False
+            scores[kind] = max(scores[kind], score)
+    # Initial and success captions share words in several translations. A
+    # partial success match must not override a stronger full initial caption.
+    # Ties retain the conservative refusal to resume an untracked round.
+    return scores['success'] >= .85 and scores['success'] >= scores['chance']
 
 
 def detect_game_state(screen_bgr):
