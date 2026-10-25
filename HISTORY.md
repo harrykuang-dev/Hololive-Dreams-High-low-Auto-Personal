@@ -1,6 +1,11 @@
 # Version history
 
-Current release: [v1.1.1](docs/RELEASE-1.1.1.md).
+Current release: [v1.1.2](docs/RELEASE-1.1.2.md).
+
+## v1.1.1 — Superseded
+
+- Added a Fluent-style interface, strategy explanations and daily reset controls.
+- Stored records and preferences in LocalAppData.
 
 ## v1.1.0 — Superseded
 

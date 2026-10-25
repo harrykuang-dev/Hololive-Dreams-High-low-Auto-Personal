@@ -34,6 +34,6 @@ Output: `dist/HololiveDreamsHighLowAuto.exe`.
 
 ## Documentation and licenses
 
-[Aggressive strategy](THREE_STAGE.md) · [Game terminology](docs/GAME_TERMS.md) · [Reward OCR](docs/OCR.md) · [v1.1.1 release notes](docs/RELEASE-1.1.1.md) · [Version history](HISTORY.md)
+[Aggressive strategy](THREE_STAGE.md) · [Game terminology](docs/GAME_TERMS.md) · [Reward OCR](docs/OCR.md) · [v1.1.2 release notes](docs/RELEASE-1.1.2.md) · [Version history](HISTORY.md)
 
 Card recognition and hold-card strategy are based on [hololive-dreams-helper](https://github.com/Oreki0504/hololive-dreams-helper). Its [MIT notice](licenses/poker-core-MIT.txt) and other required license notices are retained in [licenses](licenses/).

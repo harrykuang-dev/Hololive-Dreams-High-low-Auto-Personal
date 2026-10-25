@@ -34,6 +34,6 @@ python -m PyInstaller --noconfirm "Hololive Dreams-Auto.spec"
 
 ## 文件與授權
 
-[激進策略](THREE_STAGE.md#zh-tw) · [遊戲用詞](docs/GAME_TERMS.md) · [獎金 OCR](docs/OCR.md) · [v1.1.1 更新說明](docs/RELEASE-1.1.1.md#繁體中文) · [版本歷史](HISTORY.md)
+[激進策略](THREE_STAGE.md#zh-tw) · [遊戲用詞](docs/GAME_TERMS.md) · [獎金 OCR](docs/OCR.md) · [v1.1.2 更新說明](docs/RELEASE-1.1.2.md#繁體中文) · [版本歷史](HISTORY.md)
 
 識牌與留牌策略來自 [hololive-dreams-helper](https://github.com/Oreki0504/hololive-dreams-helper)。其 [MIT 聲明](licenses/poker-core-MIT.txt)與其他必要授權聲明保留於 [licenses](licenses/)。

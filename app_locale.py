@@ -1,5 +1,5 @@
 """Six-language UI; game nouns verified against extracted master tables."""
-APP_VERSION = '1.1.1'
+APP_VERSION = '1.1.2'
 LANGUAGES = {'English':'en', '繁體中文':'tw', '日本語':'ja', '한국어':'ko', 'Indonesian':'id', '简体中文':'zh'}
 TEXT = {
  'tw': dict(reset='重設當日記錄', reset_confirm='確定將今日入帳、淨利、勝敗次數及三階段進度歸零？此操作無法復原。', daily_reset='當日記錄已歸零。', reset_error='無法保存歸零結果，請確認資料目錄可寫入。', game='比大小', currency='硬幣', title='自動比大小', language='語言/Language', strategy='策略', legacy='1.0.1 原版', phased='三階段：最大 → 計次 → 最大', start_key='開始快捷鍵', stop_key='停止快捷鍵', start='開始', stop='停止', ready='等待開始', running='執行中', stopping='正在停止…', stopped='已停止', instructions='先進入遊戲比大小畫面，再點擊「開始」', coins='今日硬幣：{coins:,} / 20,000', profit='淨利：{profit:+,}', counts='勝局：{wins}　敗局：{fails}', unknown_profit='淨利：無法確認（舊紀錄缺少勝局次數）', capture='請按下快捷鍵…', duplicate='開始與停止快捷鍵不能相同。', hotkey_error='無法註冊快捷鍵 {key}，可能已被其他程式使用。', error='執行失敗', credit='已入帳 {amount:,} 硬幣', failed='本局失敗，已扣除 50 硬幣投入。', NO_WINDOW='等待遊戲視窗', UNKNOWN='等待可辨識畫面', START_BET='開始新一局', HOLD_CARDS='選擇保留牌', TAP_TO_PROCEED='繼續遊戲', ASK_CHALLENGE='判斷是否翻倍', HIGH_LOW='比大小進行中', FAIL='本局失敗', RESULT='核對結算'),

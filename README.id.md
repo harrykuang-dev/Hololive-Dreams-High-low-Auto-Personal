@@ -34,6 +34,6 @@ Hasil: `dist/HololiveDreamsHighLowAuto.exe`.
 
 ## Dokumentasi dan lisensi
 
-[Strategi Agresif](THREE_STAGE.md#id) · [Istilah game](docs/GAME_TERMS.md) · [OCR hadiah](docs/OCR.md) · [Catatan rilis v1.1.1](docs/RELEASE-1.1.1.md) · [Riwayat versi](HISTORY.md)
+[Strategi Agresif](THREE_STAGE.md#id) · [Istilah game](docs/GAME_TERMS.md) · [OCR hadiah](docs/OCR.md) · [Catatan rilis v1.1.2](docs/RELEASE-1.1.2.md) · [Riwayat versi](HISTORY.md)
 
 Pengenalan kartu dan strategi pemilihan kartu yang dipertahankan didasarkan pada [hololive-dreams-helper](https://github.com/Oreki0504/hololive-dreams-helper). [Pemberitahuan MIT](licenses/poker-core-MIT.txt) dan pemberitahuan lisensi lain yang diperlukan disertakan dalam [licenses](licenses/).

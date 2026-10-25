@@ -34,6 +34,6 @@ python -m PyInstaller --noconfirm "Hololive Dreams-Auto.spec"
 
 ## ドキュメントとライセンス
 
-[積極戦略](THREE_STAGE.md#ja) · [ゲーム用語](docs/GAME_TERMS.md) · [報酬 OCR](docs/OCR.md) · [v1.1.1 リリースノート](docs/RELEASE-1.1.1.md) · [バージョン履歴](HISTORY.md)
+[積極戦略](THREE_STAGE.md#ja) · [ゲーム用語](docs/GAME_TERMS.md) · [報酬 OCR](docs/OCR.md) · [v1.1.2 リリースノート](docs/RELEASE-1.1.2.md) · [バージョン履歴](HISTORY.md)
 
 カード認識と保持するカードの選択戦略は [hololive-dreams-helper](https://github.com/Oreki0504/hololive-dreams-helper) に基づきます。[MIT ライセンス表記](licenses/poker-core-MIT.txt)とその他の必要なライセンス表記は [licenses](licenses/) に含まれます。
