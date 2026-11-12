@@ -80,13 +80,14 @@ _user32.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
 _user32.ReleaseDC.restype = ctypes.c_int
 _user32.PrintWindow.argtypes = [wintypes.HWND, wintypes.HDC, wintypes.UINT]
 _user32.PrintWindow.restype = wintypes.BOOL
-_user32.IsWindow.argtypes = [wintypes.HWND]
-_user32.IsWindow.restype = wintypes.BOOL
-_user32.ShowWindowAsync.argtypes = [wintypes.HWND, ctypes.c_int]
+_user32.IsWindowVisible.argtypes = [wintypes.HWND]
+_user32.IsWindowVisible.restype = wintypes.BOOL
+_user32.IsIconic.argtypes = [wintypes.HWND]
+_user32.IsIconic.restype = wintypes.BOOL
+_user32.GetForegroundWindow.argtypes = []
+_user32.GetForegroundWindow.restype = wintypes.HWND
 _user32.SetForegroundWindow.argtypes = [wintypes.HWND]
-_user32.BringWindowToTop.argtypes = [wintypes.HWND]
-_user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
-                                 ctypes.c_int, ctypes.c_int, wintypes.UINT]
+_user32.SetForegroundWindow.restype = wintypes.BOOL
 
 _gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
 _gdi32.CreateCompatibleDC.restype = wintypes.HDC
@@ -298,55 +299,64 @@ def _capture_client_with_printwindow(hwnd, width, height):
             _user32.ReleaseDC(hwnd, window_dc)
 
 
+def _usable_client_geometry(hwnd):
+    if not hwnd or not _user32.IsWindowVisible(hwnd) or _user32.IsIconic(hwnd):
+        return None
+    try:
+        rect = _get_client_geometry(hwnd)
+    except OSError:
+        return None
+    if rect[2] < 640 or rect[3] < 360 or _user32.IsIconic(hwnd):
+        return None
+    return rect
+
+
 def capture_game_window():
     global _capture_context
+    _capture_context = None
     win = find_game_window()
     if win is None:
-        _capture_context = None
         return None, 0, 0
-
-    if win.isMinimized:
-        win.restore()
-        time.sleep(0.5)
-
     hwnd = win._hWnd
+    rect = _usable_client_geometry(hwnd)
+    if rect is None:
+        # Forcing Unity to restore during capture can leave a title-only window.
+        # The run loop waits for the user to restore a usable client area.
+        return None, 0, 0
+    left, top, width, height = rect
     try:
-        left, top, width, height = _get_client_geometry(hwnd)
-        if width < 640 or height < 360:
-            raise RuntimeError(f"游戏客户区尺寸异常: {width}x{height}")
         img = _capture_client_with_printwindow(hwnd, width, height)
     except Exception as exc:
         # Fallback for Windows versions/drivers where PrintWindow is disabled.
-        # Bring the exact game window forward before using a desktop capture.
+        if _usable_client_geometry(hwnd) != rect or not _bring_game_to_front(hwnd):
+            return None, 0, 0
         print(f"[警告] 后台窗口截图失败，切换到前台截图: {exc}")
-        _bring_game_to_front(hwnd)
         time.sleep(0.2)
-        left, top, width, height = _get_client_geometry(hwnd)
+        if _usable_client_geometry(hwnd) != rect or _user32.GetForegroundWindow() != hwnd:
+            return None, 0, 0
         monitor = {"top": top, "left": left, "width": width, "height": height}
         with mss.MSS() as sct:
             img = cv2.cvtColor(np.array(sct.grab(monitor)), cv2.COLOR_BGRA2BGR)
+        if _user32.GetForegroundWindow() != hwnd:
+            return None, 0, 0
 
+    if _usable_client_geometry(hwnd) != rect:
+        return None, 0, 0
+    normalized = cv2.resize(img, (REFERENCE_WIDTH, REFERENCE_HEIGHT), interpolation=cv2.INTER_CUBIC)
     _capture_context = {
         "hwnd": hwnd,
         "width": width,
         "height": height,
     }
-    normalized = cv2.resize(img, (REFERENCE_WIDTH, REFERENCE_HEIGHT), interpolation=cv2.INTER_CUBIC)
     return normalized, left, top
 
 
 def _bring_game_to_front(hwnd):
-    if not hwnd or not _user32.IsWindow(hwnd):
+    if _usable_client_geometry(hwnd) is None:
         return False
-    _user32.ShowWindowAsync(hwnd, 9)  # SW_RESTORE
-    _user32.BringWindowToTop(hwnd)
-    _user32.SetForegroundWindow(hwnd)
-    # A short topmost -> non-topmost transition also handles windows that were
-    # visually above the foreground window on multi-monitor setups.
-    flags = 0x0001 | 0x0002 | 0x0040  # NOSIZE | NOMOVE | SHOWWINDOW
-    _user32.SetWindowPos(hwnd, wintypes.HWND(-1), 0, 0, 0, 0, flags)
-    _user32.SetWindowPos(hwnd, wintypes.HWND(-2), 0, 0, 0, 0, flags)
-    return True
+    if _user32.GetForegroundWindow() != hwnd:
+        _user32.SetForegroundWindow(hwnd)
+    return _user32.GetForegroundWindow() == hwnd and _usable_client_geometry(hwnd) is not None
 
 
 def safe_click(rel_x, rel_y, win_left, win_top):
