@@ -1,6 +1,10 @@
 # Version history
 
-Current release: [v1.1.2](docs/RELEASE-1.1.2.md).
+Current release: [v1.1.3](docs/RELEASE-1.1.3.md).
+
+## v1.1.2 — Superseded
+
+- Fixed initial double-up prompts being mistaken for successful double-ups when their text overlaps.
 
 ## v1.1.1 — Superseded
 
