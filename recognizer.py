@@ -9,6 +9,20 @@ import numpy as np
 from poker_core import JOKER_ID, card_id
 
 
+def read_template_image(path: str | Path, flags: int) -> np.ndarray:
+    """Read a template from a Windows path that may contain Chinese characters."""
+    try:
+        encoded = np.fromfile(str(path), dtype=np.uint8)
+    except OSError as exc:
+        raise RuntimeError(f"无法读取模板文件：{path}（{exc}）") from exc
+    if encoded.size == 0:
+        raise RuntimeError(f"模板文件为空或不存在：{path}")
+    image = cv2.imdecode(encoded, flags)
+    if image is None:
+        raise RuntimeError(f"无法解码模板：{path}")
+    return image
+
+
 @dataclass(frozen=True)
 class RecognizedCard:
     card_id: int
@@ -38,27 +52,13 @@ class CardRecognizer:
             label = path.stem[0]
             self.suit_templates.setdefault(label, []).append(self._load_mask(path))
         self.joker_corner = self._load_mask(template_dir / "joker_corner.png")
-        self.joker_card = self._read_image(template_dir / "joker_card.png", cv2.IMREAD_GRAYSCALE)
+        self.joker_card = read_template_image(template_dir / "joker_card.png", cv2.IMREAD_GRAYSCALE)
         if not self.rank_templates or len(self.suit_templates) != 4 or self.joker_card is None:
             raise RuntimeError("模板文件不完整。")
 
     @staticmethod
-    def _read_image(path: Path, flags: int) -> np.ndarray:
-        """Read an image from a Windows path that may contain Chinese characters."""
-        try:
-            encoded = np.fromfile(str(path), dtype=np.uint8)
-        except OSError as exc:
-            raise RuntimeError(f"无法读取模板文件：{path}（{exc}）") from exc
-        if encoded.size == 0:
-            raise RuntimeError(f"模板文件为空或不存在：{path}")
-        image = cv2.imdecode(encoded, flags)
-        if image is None:
-            raise RuntimeError(f"无法解码模板：{path}")
-        return image
-
-    @staticmethod
     def _load_mask(path: Path) -> np.ndarray:
-        image = CardRecognizer._read_image(path, cv2.IMREAD_GRAYSCALE)
+        image = read_template_image(path, cv2.IMREAD_GRAYSCALE)
         return (image > 127).astype(np.uint8) * 255
 
     @staticmethod

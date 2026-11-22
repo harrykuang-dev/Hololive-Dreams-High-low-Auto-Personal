@@ -1,6 +1,10 @@
 # Version history
 
-Current release: [v1.1.3](docs/RELEASE-1.1.3.md).
+Current release: [v1.1.4](docs/RELEASE-1.1.4.md).
+
+## v1.1.3 — Superseded
+
+- Fixed a game window restore issue when minimizing the game during play.
 
 ## v1.1.2 — Superseded
 

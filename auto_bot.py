@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 import ddddocr
 
-from recognizer import CardRecognizer
+from recognizer import CardRecognizer, read_template_image
 from poker_core import calculate_best, JOKER_ID
 from settlement import SettlementReader
 from reward_vision import read_challenge_number, read_result_number as read_result_digits
@@ -402,7 +402,7 @@ def find_and_click_icon(screen_bgr, tpl_path, win_left, win_top, threshold=0.80)
         return False
 
     screen_gray = cv2.cvtColor(screen_bgr, cv2.COLOR_BGR2GRAY)
-    tpl_img = cv2.imread(tpl_path, cv2.IMREAD_GRAYSCALE)
+    tpl_img = read_template_image(tpl_path, cv2.IMREAD_GRAYSCALE)
     res = cv2.matchTemplate(screen_gray, tpl_img, cv2.TM_CCOEFF_NORMED)
     _, max_val, _, max_loc = cv2.minMaxLoc(res)
 
@@ -440,7 +440,7 @@ def detect_game_state(screen_bgr):
         for tpl_path in tpl_paths:
             if not os.path.exists(tpl_path):
                 continue
-            tpl_img = cv2.imread(tpl_path, cv2.IMREAD_GRAYSCALE)
+            tpl_img = read_template_image(tpl_path, cv2.IMREAD_GRAYSCALE)
             res = cv2.matchTemplate(screen_gray, tpl_img, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, _ = cv2.minMaxLoc(res)
             if max_val >= THRESHOLD:
