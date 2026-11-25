@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> 本程序已并入 [Holodori-Auto](https://github.com/harrykuang-dev/Holodori-Auto)。此独立项目已停止维护和更新。
+
 # Hololive Dreams — 自动猜高低
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Indonesian](README.id.md) · [简体中文](README.zh-CN.md)
