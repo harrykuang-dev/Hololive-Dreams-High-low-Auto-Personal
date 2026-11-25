@@ -64,5 +64,5 @@ def error_message(detail):
     if '无法保留第三阶段' in detail: return 'error_target', {}
     return 'error_detail', {'detail':detail}
 
-def text(language, key, **values):
-    return TEXT[language][key].format(**values)
+def text(language, message_key, **values):
+    return TEXT[language][message_key].format(**values)
