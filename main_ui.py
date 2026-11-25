@@ -138,7 +138,8 @@ class HololiveBotUI:
         root.after(50, self.poll)
 
     def px(self, value): return round(value*self.scale)
-    def tr(self, key, **values): return text(LANGUAGES[self.language.get()], key, **values)
+    def tr(self, message_key, **values):
+        return text(LANGUAGES[self.language.get()], message_key, **values)
 
     @staticmethod
     def read_stats():
@@ -493,8 +494,8 @@ class HololiveBotUI:
         self.log.see('end')
         self.log.configure(state='disabled')
 
-    def record(self,key,**values):
-        self.history.append((key,values))
+    def record(self, message_key, **values):
+        self.history.append((message_key, values))
         self.history=self.history[-100:]
         self.render_history()
 
